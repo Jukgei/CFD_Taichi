@@ -57,6 +57,42 @@ def init_particle():
 		pos[i] = (ti.Vector([x, y, z]) + start_pos) * particle_radius * 2
 
 
+@ti.func
+def poly_kernel(r, h):
+	ret = 0.0
+	if r <= h:
+		ret = 315 / (64 * ti.math.pi * h ** 9) * ((h ** 2 - r**2) **3)
+	return ret
+
+
+@ti.func
+def spiky_kernel(r, h):
+	ret = 0.0
+	if r <= h:
+		ret = 15 / (ti.math.pi * h ** 6) * ((h - r) **3)
+	return ret
+
+@ti.func
+def viscosity_kernel(r, h):
+	ret = 0.0
+	if r <= h:
+		a = - r ** 3 / (2 * h**3)
+		b = r ** 2 / (h **2)
+		c = h / (2 * r)
+		ret = 15 / (2 * ti.math.pi * h ** 3) * (a + b + c - 1)
+	return ret
+
+
+@ti.kernel
+def kernel_test():
+	r = 0.5
+	h = 1
+	poly = poly_kernel(r, h)
+	spiky = spiky_kernel(r, h)
+	viscosity = viscosity_kernel(r, h)
+	print("poly kernel value is", poly)
+	print("spiky kernel value is", spiky)
+	print("viscosity kernel value is", viscosity)
 
 particles_pos = ti.Vector.field(3, dtype=ti.f32, shape=N)
 
@@ -80,7 +116,7 @@ if __name__ == "__main__":
 	scene.set_camera(camera)
 
 	init_particle()
-
+	kernel_test()
 
 
 	while window.running:
