@@ -2,6 +2,8 @@
 
 import taichi as ti
 import logging
+from ParticleSystem import ParticleSystem
+from wcsph_solver import wcsph_solver
 
 ti.init(ti.cuda, debug=False, device_memory_fraction=0.5)
 
@@ -12,21 +14,22 @@ logger = logging.getLogger("Simulation")
 
 N = 1
 
-water_size = ti.Vector([1, 1, 0.7])
+# water_size = ti.Vector([0.5, 0.8, 0.5])
+water_size = ti.Vector([0.5, 0.5, 0.05])
 
-particle_radius = 0.1
+particle_radius = 0.01
 # particle_num = ti.field(int, shape=())
 particle_num = int(water_size.x / particle_radius * water_size.y / particle_radius * water_size.z / particle_radius)
 logger.info("Particle count: %d", particle_num)
 
 start_pos = ti.Vector([1, 1, 1])
 
-box_min = ti.Vector([0, 0, 0])
-box_max =  ti.Vector([3, 3, 3])
+box_min = ti.Vector([0.0, 0.0, 0.0])
+box_max = ti.Vector([3.0, 3.0, 3.0])
 
-pos = ti.Vector.field(3, ti.f32, shape=particle_num)
-vel = ti.Vector.field(3, ti.f32, shape=particle_num)
-acc = ti.Vector.field(3, ti.f32, shape=particle_num)
+# pos = ti.Vector.field(3, ti.f32, shape=particle_num)
+# vel = ti.Vector.field(3, ti.f32, shape=particle_num)
+# acc = ti.Vector.field(3, ti.f32, shape=particle_num)
 
 
 box_vert = ti.Vector.field(3, ti.f32, shape=12)
@@ -58,6 +61,7 @@ def init_particle():
 
 
 @ti.func
+# pressure
 def poly_kernel(r, h):
 	ret = 0.0
 	if r <= h:
@@ -66,6 +70,7 @@ def poly_kernel(r, h):
 
 
 @ti.func
+# pressure
 def spiky_kernel(r, h):
 	ret = 0.0
 	if r <= h:
@@ -85,7 +90,7 @@ def viscosity_kernel(r, h):
 
 @ti.kernel
 def kernel_test():
-	r = 0.5
+	r = 0.01
 	h = 1
 	poly = poly_kernel(r, h)
 	spiky = spiky_kernel(r, h)
@@ -107,25 +112,32 @@ if __name__ == "__main__":
 	scene = ti.ui.Scene()
 
 	camera = ti.ui.Camera()
-	camera.position(5,2,2)
-	camera.lookat(-5,-2,-2)
+	camera.position(10, 3, 4)
+	camera.lookat(-5, -2, -2)
 	# camera.lookat(0,-1,0)
-	camera.up(0,1,0)
+	camera.up(0, 1, 0)
 	# ti.ui.ProjectionMode = 0
 	# camera.projection_mode(ti.ui.ProjectionMode)
 	scene.set_camera(camera)
 
-	init_particle()
-	kernel_test()
-
-
+	# init_particle()
+	# kernel_test()
+	ps = ParticleSystem(box_min, box_max, particle_radius)
+	solver = wcsph_solver(ps)
+	ps.solver = solver
+	solver.sample_a_rho()
 	while window.running:
-		camera.track_user_inputs(window, movement_speed=0.005, hold_key=ti.ui.RMB)
+		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
 		scene.set_camera(camera)
 		scene.ambient_light((0.8, 0.8, 0.8))
 		scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
 
-		scene.particles(pos, color=(0.68, 0.26, 0.19), radius=particle_radius)
-		scene.lines(box_vert, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=1.0)
+		# scene.particles(pos, color=(0.68, 0.26, 0.19), radius=particle_radius)
+		scene.particles(ps.pos, color=(0.0, 0.26, 0.68), radius=particle_radius)
+		# for i in range(5):
+		# 	solver.step()
+		# if window.is_pressed(ti.ui.ESCAPE):
+
+		scene.lines(box_vert, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=2.0)
 		canvas.scene(scene)
 		window.show()
