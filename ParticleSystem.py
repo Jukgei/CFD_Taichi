@@ -6,16 +6,13 @@ class ParticleSystem:
 
 	def __init__(self, box_min, box_max, particle_radius):
 		# self.water_size = ti.Vector([0.5, 0.8, 0.5])
-		self.water_size = ti.Vector([0.2, 0.5, 0.2])
+		self.water_size = ti.Vector([0.3, 0.5, 0.3])
 		self.start_pos = ti.Vector([0, 0, 0])
 		self.particle_radius = particle_radius
 		self.support_radius = 4 * self.particle_radius
 		# self.particle_m = 1000 * ((self.particle_radius * 2) ** 3) * ti.math.pi / 6
 		self.particle_m = 1000 * ((self.particle_radius ) ** 3) * 8
 		# self.particle_m = 1000 * ((self.particle_radius * 2) ** 3) * 0.8
-		self.distance_scale = 1
-		# self.distance_scale = 6.25
-		# self.distance_scale = 10
 
 		self.particle_num = int(
 			self.water_size.x / self.particle_radius * self.water_size.y / self.particle_radius * self.water_size.z / self.particle_radius)
@@ -56,41 +53,18 @@ class ParticleSystem:
 
 	@ti.func
 	def reset_grid(self):
-		self.grids.fill(0)
+		# self.grids.fill(0)
+		# grid = ((self.box_max - self.box_min) / self.particle_radius)  # .to_numpy().astype(np.int32)
+		# print(grid)
+		for I in ti.grouped(ti.ndrange(300, 300, 300)):
+			if self.grids[I, 0] != 0:
+				self.grids[I, 0] = 0
 
 	@ti.kernel
 	def test(self):
-		# self.get_particle_grid_index(self.pos[0])
-		# self.get_particle_grid_index(self.pos[1])
-		# self.get_particle_grid_index(self.pos[2])
-		# self.get_particle_grid_index(self.pos[3])
-		# grid_index = self.get_particle_grid_index(ti.Vector([0, 0, 0.02]))
-		# print(self.grids[grid_index, 0])
-		# grid_index = self.get_particle_grid_index(ti.Vector([0, 0, 0.00]))
-		# print(self.grids[grid_index, 0])
-		# grid_index = self.get_particle_grid_index(ti.Vector([0.02, 0, 0.00]))
-		# print(self.grids[grid_index, 0])
-		# grid_index = self.get_particle_grid_index(ti.Vector([0.02, 0, 0.02]))
-		# print(self.grids[grid_index, 0])
-		#
-		# grid_index = self.get_particle_grid_index(ti.Vector([0, 0.02, 0.02]))
-		# print(self.grids[grid_index, 0])
-		# grid_index = self.get_particle_grid_index(ti.Vector([0, 0.02, 0.00]))
-		# print(self.grids[grid_index, 0])
-		# grid_index = self.get_particle_grid_index(ti.Vector([0.02, 0.02, 0.00]))
-		# print(self.grids[grid_index, 0])
-		# grid_index = self.get_particle_grid_index(ti.Vector([0.02, 0.02, 0.02]))
-		# print(self.grids[grid_index, 0])
-
-		# self.get_particle_grid_index(ti.Vector([0, 0, 0.04]))
-		# self.get_particle_grid_index(ti.Vector([0.02, 0, 0.04]))
-		# print(self.get_particle_grid_index(self.pos[2346]))
-		# print(ti.round(self.pos[2346] / self.support_radius, ti.i32))
-		# print(self.pos[2346], '/', self.support_radius)
-		# print(self.pos[2346] / self.support_radius)
-		# self.check_all_grid()
+		self.reset_grid()
 		self.update_grid()
-		self.check_all_grid()
+		# self.check_all_grid()
 		# self.for_all_neighbor(0)
 
 	@ti.func
@@ -105,34 +79,26 @@ class ParticleSystem:
 			self.grids[grid_index, length + 1] = i
 			self.belong_grid[i] = grid_index
 
-
 	@ti.func
-	def for_all_neighbor(self, i, task: ti.template()):
+	def for_all_neighbor(self, i, task: ti.template(), ret: ti.template()):
 		center = self.belong_grid[i]
-		print(center)
-		# cnt = 0
 		for I in ti.grouped(ti.ndrange((-1, 2), (-1, 2), (-1, 2))):
-			# print(I + center, (I+center).all())
 
 			if not (I + center >= 0).all():
 				continue
 			count = self.grids[I + center, 0]
 			# print(count)
 			for index in range(count):
-				# print(self.grids[I, particle_i+1], I)
-				particle_j = self.grids[I, index+1]
-				# cnt += 1
-				# pass_cnt = ti.atomic_add(cnt, 1)
-				# self.pos_debug[pass_cnt] = self.pos[particle_j]
+				particle_j = self.grids[I + center, index+1]
+				# print(particle_j, I, index + 1, center, count, index, self.grids[I + center, index])
 				if particle_j == i:
 					continue
-				task(particle_j)
-				# print("Distance: ", (self.pos[particle_j] - self.pos[i]).norm(), particle_j)
-		# print(cnt)
+				ret += task(i, particle_j)
+
 	@ti.func
 	def check_all_grid(self):
 		grid = ((self.box_max - self.box_min) / self.particle_radius)#.to_numpy().astype(np.int32)
-		print(grid)
+		# print(grid)
 		sum = 0
 		cnt = 0
 		for I in ti.grouped(ti.ndrange(int(grid[0]), int(grid[1]), int(grid[2]))):
@@ -147,11 +113,11 @@ class ParticleSystem:
 				# 	index = self.grids[I, k]
 				# 	print(self.pos[index], index, I)
 				# print('\n')
-		if sum == self.particle_num:
-			print("Check Pass")
-		else:
-			print('Check no pass')
-		print('sum is ', sum)
+		if not sum == self.particle_num:
+			print("Check no Pass")
+		# else:
+		# 	print('Check no pass')
+		# print('sum is ', sum)
 
 	@ti.func
 	def get_particle_grid_index(self, pos) -> ti.types.vector:

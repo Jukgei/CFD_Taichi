@@ -37,9 +37,9 @@ class wcsph_solver:
 	def semi_implicit_euler_step(self):
 		# pass
 
-		# self.ps.reset_grid()
+		self.ps.reset_grid()
 		#
-		# self.ps.update_grid()
+		self.ps.update_grid()
 
 		self.reset()
 
@@ -49,10 +49,10 @@ class wcsph_solver:
 
 	@ti.func
 	def reset(self):
-		self.rho.fill(0)
-		self.pressure_gradient.fill(ti.Vector([0.0, 0.0, 0.0]))
-		self.pressure.fill(0)
-		self.viscosity.fill(ti.Vector([0.0, 0.0, 0.0]))
+		# self.rho.fill(0)
+		# self.pressure_gradient.fill(ti.Vector([0.0, 0.0, 0.0]))
+		# self.pressure.fill(0)
+		# self.viscosity.fill(ti.Vector([0.0, 0.0, 0.0]))
 
 		self.ps.acc.fill(9.8 * ti.Vector([0, -1, 0]))
 
@@ -87,7 +87,10 @@ class wcsph_solver:
 	@ti.func
 	def solve_all_rho(self):
 		for i in range(self.particle_count):
-			self.rho[i] = self.solve_rho(i)
+			# self.rho[i] = self.solve_rho(i)
+			rho = 0.001
+			self.ps.for_all_neighbor(i, self.compute_rho, rho)
+			self.rho[i] = rho
 
 	@ti.func
 	def solve_rho(self, i):
@@ -97,6 +100,20 @@ class wcsph_solver:
 				rho += self.ps.particle_m * self.spiky_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), kernel_h)
 		return rho
 
+
+	@ti.func
+	def compute_rho(self, i, j):
+		return self.ps.particle_m * self.spiky_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), kernel_h)
+
+	# @ti.func
+	# def for_all_neighbors_solve_rho(self, i):
+	# 	rho = 0.001
+
+		# self.ps.for_all_neighbor(i, self.compute_rho, rho)
+		# print(self.rho[i])
+		# print('rho', rho)
+		# return rho
+
 	@ti.func
 	def solve_all_pressure(self):
 		for i in range(self.particle_count):
@@ -105,8 +122,15 @@ class wcsph_solver:
 
 	@ti.func
 	def solve_all_pressure_gradient(self):
+		# for loop
+		# for i in range(self.particle_count):
+		# 	self.pressure_gradient[i] = self.solve_gradient_p(i)
+
+		# neighbor
 		for i in range(self.particle_count):
-			self.pressure_gradient[i] = self.solve_gradient_p(i)
+			ret = ti.Vector([0.0, 0.0, 0.0])
+			self.ps.for_all_neighbor(i, self.compute_pressure_gradient, ret)
+			self.pressure_gradient[i] = ret
 
 
 	@ti.func
@@ -130,9 +154,25 @@ class wcsph_solver:
 	@ti.func
 	def solve_p(self, i):
 		rho_i = ti.max(self.rho[i], self.rho_0[None])
-
 		p = B * ((rho_i / self.rho_0[None]) ** gamma - 1.0)
 		return p
+
+	@ti.func
+	def compute_pressure_gradient(self, i, j) -> ti.types.vector:
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		rho_i = self.rho[i]
+		rho_i_2 = rho_i ** 2
+
+		p_i = self.pressure[i]
+
+		p_j = self.pressure[j]
+		rho_j = self.rho[j]
+		q = (self.ps.pos[i] - self.ps.pos[j]).norm()
+		dir = (self.ps.pos[i] - self.ps.pos[j]).normalized()
+		# print(self.ps.particle_m, (p_i / (rho_i_2) + p_j / (rho_j ** 2)), self.gradient_spiky_kernel(q, kernel_h), dir )
+		if not ti.math.isnan(dir[0]):
+			ret += self.ps.particle_m * (p_i / (rho_i_2) + p_j / (rho_j ** 2)) * self.gradient_spiky_kernel(q, kernel_h) * dir
+		return ret
 
 	@ti.func
 	def solve_gradient_p(self, i):

@@ -109,10 +109,11 @@ if __name__ == "__main__":
 	# init_particle()
 	kernel_test()
 	ps = ParticleSystem(box_min, box_max, particle_radius)
+	ps.test()
 	solver = wcsph_solver(ps)
 	solver.sample_a_rho()
-	# ps.test()
 	while window.running:
+
 		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
 		scene.set_camera(camera)
 		scene.ambient_light((0.8, 0.8, 0.8))
@@ -125,8 +126,7 @@ if __name__ == "__main__":
 		solver.step()
 		# if window.is_pressed(ti.ui.ESCAPE):
 
-
-
+		# ps.test()
 		scene.lines(box_vert, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=2.0)
 		canvas.scene(scene)
 		window.show()
