@@ -4,8 +4,8 @@ import taichi as ti
 v_decay_proportion = 0.9
 kernel_h = 0.01 * 4
 gamma = 7
-# B = 140000 # ((math.sqrt(2 * 9.8 * 0.25) / 0.1) ** 2 ) * 1000 / 7
-B = 70000
+B = 140000 # ((math.sqrt(2 * 9.8 * 0.25) / 0.1) ** 2 ) * 1000 / 7
+# B = 70000
 
 @ti.data_oriented
 class wcsph_solver:
@@ -36,6 +36,11 @@ class wcsph_solver:
 	@ti.func
 	def semi_implicit_euler_step(self):
 		# pass
+
+		# self.ps.reset_grid()
+		#
+		# self.ps.update_grid()
+
 		self.reset()
 
 		self.pressure_phase()
@@ -89,14 +94,8 @@ class wcsph_solver:
 		rho = 0.001
 		for j in range(self.particle_count):
 			if j != i:
-				# if True:
-				# rho += particle_m * solve_gradient_kernel(x[particle_i], x[j])
-				# if j==1 and i ==2:
-				# 	print((self.ps.pos[i] - self.ps.pos[j]).norm() * self.ps.distance_scale)
-				rho += self.ps.particle_m * self.spiky_kernel((self.ps.pos[i] - self.ps.pos[j]).norm() * self.ps.distance_scale, kernel_h)
-		# print("rho ", rho, )
+				rho += self.ps.particle_m * self.spiky_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), kernel_h)
 		return rho
-
 
 	@ti.func
 	def solve_all_pressure(self):
@@ -146,11 +145,14 @@ class wcsph_solver:
 				# if True:
 				p_j = self.pressure[j]
 				rho_j = self.rho[j]
-				q = (self.ps.pos[i] - self.ps.pos[j]).norm() * self.ps.distance_scale
+				q = (self.ps.pos[i] - self.ps.pos[j]).norm()
 				dir = (self.ps.pos[i] - self.ps.pos[j]).normalized()
-
+				if ti.math.isnan(dir[0]):
+					print((p_i / (rho_i_2) + p_j / (rho_j ** 2)), dir, )
+					print(dir, self.ps.pos[i], self.ps.pos[j], i, j)
+					continue
 				# sum += particle_m * (p_i/ (rho_i_2) + p_j / (rho_j ** 2)) * solve_smooth_kernel(q) * solve_gradient_kernel(q) * dir
 				sum += self.ps.particle_m * (p_i / (rho_i_2) + p_j / (rho_j ** 2)) * self.gradient_spiky_kernel(q, kernel_h) * dir
 
-
+				# print((p_i / (rho_i_2) + p_j / (rho_j ** 2)), self.gradient_spiky_kernel(q, kernel_h),self.ps.particle_m, rho_i_2,p_i, p_j,  (rho_j ** 2) )
 		return sum
