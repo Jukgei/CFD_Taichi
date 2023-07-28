@@ -5,7 +5,7 @@ import logging
 from ParticleSystem import ParticleSystem
 from wcsph_solver import wcsph_solver
 
-ti.init(ti.cuda, debug=False, device_memory_fraction=0.7)
+ti.init(ti.gpu, debug=False, device_memory_fraction=0.7, kernel_profiler=True)
 
 logging.basicConfig(level=logging.DEBUG, format="%(name)s (%(levelname)s): %(message)s")
 logger = logging.getLogger("Simulation")
@@ -18,7 +18,7 @@ particle_radius = 0.01
 start_pos = ti.Vector([1, 1, 1])
 
 box_min = ti.Vector([0.0, 0.0, 0.0])
-box_max = ti.Vector([3.0, 3.0, 3.0])
+box_max = ti.Vector([2.5, 3.0, 2.5])
 
 # pos = ti.Vector.field(3, ti.f32, shape=particle_num)
 # vel = ti.Vector.field(3, ti.f32, shape=particle_num)
@@ -81,7 +81,7 @@ def kernel_test():
 	print("poly kernel value is", poly)
 	print("spiky kernel value is", spiky * 0.03)
 	print("viscosity kernel value is", viscosity)
-
+	# grid = ti.ceil(((box_max - box_min) / particle_radius), ti.i32)
 	# for offset in ti.grouped(ti.ndrange(*((-1, 2),) * 3)):
 	# 	print(offset)
 	# for offset in ti.grouped(ti.ndrange((-1,2), (-1, 2), (-1, 2))):
@@ -107,11 +107,12 @@ if __name__ == "__main__":
 	scene.set_camera(camera)
 
 	# init_particle()
-	kernel_test()
+	# kernel_test()
 	ps = ParticleSystem(box_min, box_max, particle_radius)
 	ps.test()
 	solver = wcsph_solver(ps)
-	solver.sample_a_rho()
+	# solver.sample_a_rho()
+	solver.step()
 	while window.running:
 
 		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
@@ -122,11 +123,16 @@ if __name__ == "__main__":
 		# scene.particles(pos, color=(0.68, 0.26, 0.19), radius=particle_radius)
 		scene.particles(ps.pos, color=(0.0, 0.26, 0.68), radius=particle_radius)
 		# scene.particles(ps.pos_debug, color=(1.0, 0.0, 0.0), radius=particle_radius)
-		# for i in range(5):
-		solver.step()
+		for i in range(5):
+			solver.step()
+
+			# ti.profiler.print_kernel_profiler_info()
+			# ti.profiler.clear_kernel_profiler_info()
+			# ti.profiler.print_kernel_profiler_info()
 		# if window.is_pressed(ti.ui.ESCAPE):
 
 		# ps.test()
 		scene.lines(box_vert, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=2.0)
 		canvas.scene(scene)
 		window.show()
+		# ti.profiler.print_scoped_profiler_info()

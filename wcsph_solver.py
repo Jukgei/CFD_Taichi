@@ -19,19 +19,29 @@ class wcsph_solver:
 		self.viscosity = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 
 		self.particle_count = particle_count
-		self.delta_time = 1e-4
+		self.delta_time = 5e-4
 		self.rho_0 = ti.field(dtype=float, shape=())
+		self.rho_0[None] = 1000
 
-	@ti.kernel
+	# @ti.kernel
 	def sample_a_rho(self):
 		self.solve_all_rho()
-		print('Init Rho: ', self.rho[self.particle_count//2])
+		# print('Init Rho: ', self.rho[self.particle_count//2])
 		self.rho_0[None] = 1000
+		# self.reset()
+
+	# @ti.kernel
+	def step(self):
+		# self.semi_implicit_euler_step()
+		self.ps.reset_grid()
+		#
+		self.ps.update_grid()
+
 		self.reset()
 
-	@ti.kernel
-	def step(self):
-		self.semi_implicit_euler_step()
+		self.pressure_phase()
+
+		self.kinematic_phase()
 
 	@ti.func
 	def semi_implicit_euler_step(self):
@@ -47,7 +57,9 @@ class wcsph_solver:
 
 		self.kinematic_phase()
 
-	@ti.func
+
+
+	@ti.kernel
 	def reset(self):
 		# self.rho.fill(0)
 		# self.pressure_gradient.fill(ti.Vector([0.0, 0.0, 0.0]))
@@ -56,15 +68,14 @@ class wcsph_solver:
 
 		self.ps.acc.fill(9.8 * ti.Vector([0, -1, 0]))
 
-
-	@ti.func
+	@ti.kernel
 	def pressure_phase(self):
 		self.solve_all_rho()
 		self.solve_all_pressure()
 		self.solve_all_pressure_gradient()
 		# self.solve_all_viscosity()
 
-	@ti.func
+	@ti.kernel
 	def kinematic_phase(self):
 		# print(self.ps.vel[0], self.ps.vel[0].norm(), self.ps.pos[0], self.ps.acc[0], self.pressure_gradient[0])
 		for i in range(self.particle_count):
@@ -76,12 +87,12 @@ class wcsph_solver:
 		# print(self.ps.vel[0], self.ps.vel[0].norm(), self.ps.pos[0], self.ps.acc[0], self.pressure_gradient[0])
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
-				if self.ps.pos[i][j] <= self.ps.box_min[j]:
-					self.ps.pos[i][j] = self.ps.box_min[j]
+				if self.ps.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
+					self.ps.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
 					self.ps.vel[i][j] *= -v_decay_proportion
 
-				if self.ps.pos[i][j] >= self.ps.box_max[j]:
-					self.ps.pos[i][j] = self.ps.box_max[j]
+				if self.ps.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
+					self.ps.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
 					self.ps.vel[i][j] *= -v_decay_proportion
 
 	@ti.func
