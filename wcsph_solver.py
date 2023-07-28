@@ -20,8 +20,15 @@ class wcsph_solver:
 
 		self.particle_count = particle_count
 		self.delta_time = 5e-4
+
 		self.rho_0 = ti.field(dtype=float, shape=())
+		self.viscosity_epsilon = ti.field(dtype=float, shape=())
+		self.viscosity_c_s = ti.field(dtype=float, shape=())
+		self.viscosity_alpha = ti.field(dtype=float, shape=())
 		self.rho_0[None] = 1000
+		self.viscosity_epsilon[None] = 0.01
+		self.viscosity_c_s[None] = 1 #TODO 31
+		self.viscosity_alpha[None] = 0.25
 
 	# @ti.kernel
 	def sample_a_rho(self):
@@ -73,7 +80,7 @@ class wcsph_solver:
 		self.solve_all_rho()
 		self.solve_all_pressure()
 		self.solve_all_pressure_gradient()
-		# self.solve_all_viscosity()
+		self.solve_all_viscosity()
 
 	@ti.kernel
 	def kinematic_phase(self):
@@ -146,8 +153,11 @@ class wcsph_solver:
 
 	@ti.func
 	def solve_all_viscosity(self):
-		pass
-
+		for i in range(self.particle_count):
+			viscousity = ti.Vector([0.0, 0.0, 0.0])
+			self.ps.for_all_neighbor(i, self.compute_viscousity, viscousity)
+			self.viscosity[i] = viscousity
+		# print('71', self.viscosity[71], self.viscosity[71].norm())
 	@ti.func
 	def spiky_kernel(self, r, h):
 		ret = 0.0
@@ -183,6 +193,23 @@ class wcsph_solver:
 		# print(self.ps.particle_m, (p_i / (rho_i_2) + p_j / (rho_j ** 2)), self.gradient_spiky_kernel(q, kernel_h), dir )
 		if not ti.math.isnan(dir[0]):
 			ret += self.ps.particle_m * (p_i / (rho_i_2) + p_j / (rho_j ** 2)) * self.gradient_spiky_kernel(q, kernel_h) * dir
+		return ret
+
+	@ti.func
+	def compute_viscousity(self, i, j) -> ti.types.vector:
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		v_ij = self.ps.vel[i] - self.ps.vel[j]
+		x_ij = self.ps.pos[i] - self.ps.pos[j]
+		shear = v_ij @ x_ij
+		if shear < 0:
+			q = x_ij.norm()
+			dir = x_ij.normalized()
+			q2 = q * q
+			nu = (2 * self.viscosity_alpha[None] * kernel_h * self.viscosity_c_s[None]) / (self.rho[i] + self.rho[j])
+			pi = -nu * shear / (q2 + self.viscosity_epsilon[None] * kernel_h * kernel_h)
+			ret += - self.ps.particle_m * pi * self.gradient_spiky_kernel(q, kernel_h) * dir
+			if ret.norm() > 10000:
+				print('&&&', q, nu, pi, self.gradient_spiky_kernel(q, kernel_h)*self.ps.particle_m, self.rho[i], self.rho[j], shear)
 		return ret
 
 	@ti.func
