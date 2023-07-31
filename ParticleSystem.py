@@ -6,9 +6,9 @@ class ParticleSystem:
 
 	def __init__(self, box_min, box_max, particle_radius):
 		# self.water_size = ti.Vector([0.5, 0.8, 0.5])
-		self.water_size = ti.Vector([0.25, 0.5, 0.25])
+		self.water_size = ti.Vector([0.3, 0.5, 0.3])
 		self.start_pos = ti.Vector([0.01, 0.01, 0.01])
-		# self.start_pos = ti.Vector([1.9, 0.5, 1.9])
+		# self.start_pos = ti.Vector([1.0, 1.0, 1.0])
 		self.particle_radius = particle_radius
 		self.support_radius = 4 * self.particle_radius
 		# self.particle_m = 1000 * ((self.particle_radius * 2) ** 3) * ti.math.pi / 6
@@ -30,15 +30,15 @@ class ParticleSystem:
 		# Grid
 		grid_num_np = np.ceil(((self.box_max - self.box_min) / self.support_radius).to_numpy()).astype(np.int32)
 		self.grid_num = ti.Vector([grid_num_np[0], grid_num_np[1], grid_num_np[2]])
-		self.max_particle_in_grid = 80 # todo how to cal.
+		self.max_particle_in_grid = 30 # todo how to cal.
 		# The first element is the count of the particle in this grid
-		self.grids = ti.field(ti.i32, shape=(self.grid_num[0], self.grid_num[1], self.grid_num[2], self.max_particle_in_grid + 1))
+		self.grids = ti.field(ti.i32, shape=(self.grid_num[0], self.grid_num[1], self.grid_num[2], self.max_particle_in_grid + 10))
 
 		self.init_particle()
 
 		print('particle count: ', self.particle_num)
 		print('particle m: ', self.particle_m)
-		print('Grid num: ', self.grid_num)
+		print('Grid num: ', self.grid_num, self.grid_num[0]* self.grid_num[1]* self.grid_num[2])
 
 	@ti.kernel
 	def init_particle(self):
@@ -54,27 +54,33 @@ class ParticleSystem:
 
 	@ti.kernel
 	def reset_grid(self):
+		cnt = 0
 		for I in ti.grouped(ti.ndrange(self.grid_num[0], self.grid_num[1], self.grid_num[2])):
 			if self.grids[I, 0] != 0:
 				self.grids[I, 0] = 0
+				cnt +=1
+		# print('active grid count: ', cnt)
 
 	# @ti.kernel
 	def test(self):
 		self.reset_grid()
 		self.update_grid()
 		self.check_all_grid()
+
 		# self.for_all_neighbor(0)
 
 	@ti.kernel
 	def update_grid(self):
 		for i in range(self.particle_num):
 			grid_index = self.get_particle_grid_index(self.pos[i])
-
+			if self.grids[grid_index, 0] >= self.max_particle_in_grid:
+				print("FIRST DETECT WARNNING!!!!!!", grid_index, self.pos[i], self.vel[i], self.acc[i])
+				continue
 			length = ti.atomic_add(self.grids[grid_index, 0], 1)
 			if length > self.max_particle_in_grid:
 				print('WARNNING!!!!!', length, grid_index)
 				continue
-			if length > 70:
+			if length > 30:
 				print(length, grid_index)
 			self.grids[grid_index, length + 1] = i
 			self.belong_grid[i] = grid_index
@@ -102,16 +108,8 @@ class ParticleSystem:
 			sum += self.grids[I, 0]
 			if self.grids[I, 0] > 8 and cnt == 0:
 				pass
-				# cnt += 1
-				# print("large than 8", self.grids[I, 0], I)
-				# for k in range(20):
-				# 	if k == 0:
-				# 		continue
-				# 	index = self.grids[I, k]
-				# 	print(self.pos[index], index, I)
-				# print('\n')
 		if not sum == self.particle_num:
-			print("Check no Pass")
+			print("Fail!")
 		# else:
 		# 	print('Check no pass')
 		# print('sum is ', sum)

@@ -18,7 +18,7 @@ particle_radius = 0.01
 start_pos = ti.Vector([1, 1, 1])
 
 box_min = ti.Vector([0.0, 0.0, 0.0])
-box_max = ti.Vector([2.5, 3.0, 2.5])
+box_max = ti.Vector([1.5, 3.0, 1.5])
 
 # pos = ti.Vector.field(3, ti.f32, shape=particle_num)
 # vel = ti.Vector.field(3, ti.f32, shape=particle_num)
@@ -98,7 +98,7 @@ if __name__ == "__main__":
 	scene = ti.ui.Scene()
 
 	camera = ti.ui.Camera()
-	camera.position(10, 3, 4)
+	camera.position(7, 3, 5)
 	camera.lookat(-5, -2, -2)
 	# camera.lookat(0,-1,0)
 	camera.up(0, 1, 0)
@@ -111,8 +111,11 @@ if __name__ == "__main__":
 	ps = ParticleSystem(box_min, box_max, particle_radius)
 	ps.test()
 	solver = wcsph_solver(ps)
-	# solver.sample_a_rho()
-	solver.step()
+	solver.sample_a_rho()
+	# solver.step()
+	# solver.step()
+	# for i in range(8):
+	# 	solver.step()
 	while window.running:
 
 		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
