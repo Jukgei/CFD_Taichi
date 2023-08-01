@@ -22,16 +22,10 @@ class wcsph_solver:
 		self.particle_count = particle_count
 		self.delta_time = 1e-4
 
-		self.rho_0 = ti.field(dtype=float, shape=())
-		self.viscosity_epsilon = ti.field(dtype=float, shape=())
-		self.viscosity_c_s = ti.field(dtype=float, shape=())
-		self.viscosity_alpha = ti.field(dtype=float, shape=())
-		self.rho_0[None] = 1000
-		self.viscosity_epsilon[None] = 0.01
-		self.viscosity_c_s[None] = 10 #TODO 31
-		self.viscosity_alpha[None] = 0.08
-		# self.tension_k = 0.01 / 25
-		# self.tension_k = 0.03
+		self.rho_0 = 1000
+		self.viscosity_epsilon = 0.01
+		self.viscosity_c_s = 5 #TODO 31
+		self.viscosity_alpha = 0.08
 		self.tension_k = 0.1
 
 
@@ -39,7 +33,7 @@ class wcsph_solver:
 	def sample_a_rho(self):
 		# self.solve_all_rho()
 		# print('Init Rho: ', self.rho[self.particle_count//2])
-		# self.rho_0[None] = 1000
+		# self.rho_0 = 1000
 		# print('GGGGGG' , self.cubic_kernel_derivative(0, kernel_h) * self.ps.particle_m)
 		# self.reset()
 		pass
@@ -224,8 +218,8 @@ class wcsph_solver:
 
 	@ti.func
 	def solve_p(self, i):
-		rho_i = ti.max(self.rho[i], self.rho_0[None])
-		p = B * ((rho_i / self.rho_0[None]) ** gamma - 1.0)
+		rho_i = ti.max(self.rho[i], self.rho_0)
+		p = B * ((rho_i / self.rho_0) ** gamma - 1.0)
 		return p
 
 	@ti.func
@@ -251,9 +245,8 @@ class wcsph_solver:
 		if shear < 0:
 			q = x_ij.norm()
 			q2 = q * q
-			c_s = 10
-			nu = (2 * self.viscosity_alpha[None] * kernel_h * c_s) / (self.rho[i] + self.rho[j])
-			pi = -nu * shear / (q2 + self.viscosity_epsilon[None] * kernel_h * kernel_h)
+			nu = (2 * self.viscosity_alpha * kernel_h * self.viscosity_c_s) / (self.rho[i] + self.rho[j])
+			pi = -nu * shear / (q2 + self.viscosity_epsilon * kernel_h * kernel_h)
 			ret += - self.ps.particle_m * pi * self.cubic_kernel_derivative(x_ij, kernel_h)
 		return ret
 

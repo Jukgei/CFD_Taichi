@@ -100,10 +100,7 @@ if __name__ == "__main__":
 	camera = ti.ui.Camera()
 	camera.position(7, 3, 5)
 	camera.lookat(-5, -2, -2)
-	# camera.lookat(0,-1,0)
 	camera.up(0, 1, 0)
-	# ti.ui.ProjectionMode = 0
-	# camera.projection_mode(ti.ui.ProjectionMode)
 	scene.set_camera(camera)
 
 	# init_particle()
@@ -112,11 +109,17 @@ if __name__ == "__main__":
 	ps.test()
 	solver = wcsph_solver(ps)
 	solver.sample_a_rho()
-	# solver.step()
-	# solver.step()
-	# for i in range(8):
-	# 	solver.step()
+
+	frame_cnt = 0
+	step_cnt = 5
 	while window.running:
+		gui = window.get_gui()
+		# with gui.sub_window("Sub Window", x=10, y=600, width=300, height=100):
+		gui.text("frame_cnt: {}".format(frame_cnt))
+		gui.text("time: {:.4f}".format(frame_cnt * step_cnt * solver.delta_time))
+			# is_clicked = gui.button("name")
+			# value = gui.slider_float("name1", value, minimum=0, maximum=100)
+			# color = gui.color_edit_3("name2", color)
 
 		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
 		scene.set_camera(camera)
@@ -126,16 +129,15 @@ if __name__ == "__main__":
 		# scene.particles(pos, color=(0.68, 0.26, 0.19), radius=particle_radius)
 		scene.particles(ps.pos, color=(0.0, 0.26, 0.68), radius=particle_radius)
 		# scene.particles(ps.pos_debug, color=(1.0, 0.0, 0.0), radius=particle_radius)
-		for i in range(5):
+		for i in range(step_cnt):
 			solver.step()
-
 			# ti.profiler.print_kernel_profiler_info()
 			# ti.profiler.clear_kernel_profiler_info()
 			# ti.profiler.print_kernel_profiler_info()
-		# if window.is_pressed(ti.ui.ESCAPE):
 
-		# ps.test()
 		scene.lines(box_vert, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=2.0)
+
 		canvas.scene(scene)
 		window.show()
+		frame_cnt += 1
 		# ti.profiler.print_scoped_profiler_info()
