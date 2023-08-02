@@ -7,8 +7,8 @@ class ParticleSystem:
 	def __init__(self, box_min, box_max, particle_radius):
 		# self.water_size = ti.Vector([0.5, 0.8, 0.5])
 		self.water_size = ti.Vector([0.3, 0.7, 0.3])
-		# self.start_pos = ti.Vector([0.01, 0.01, 0.01])
-		self.start_pos = ti.Vector([0.75, 0.5, 0.75])
+		self.start_pos = ti.Vector([0.01, 0.01, 0.01])
+		# self.start_pos = ti.Vector([0.75, 0.5, 0.75])
 		self.particle_radius = particle_radius
 		self.support_radius = 4 * self.particle_radius
 		# self.particle_m = 1000 * ((self.particle_radius * 2) ** 3) * ti.math.pi / 6

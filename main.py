@@ -67,9 +67,9 @@ if __name__ == "__main__":
 	solver = pbf_solver(ps)
 
 	frame_cnt = 0
-	step_cnt = 5
-	for i in range(1):
-		solver.step()
+	step_cnt = 10
+	# for i in range(1):
+	# 	solver.step()
 	while window.running:
 		gui = window.get_gui()
 		# with gui.sub_window("Sub Window", x=10, y=600, width=300, height=100):

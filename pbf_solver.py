@@ -22,10 +22,15 @@ class pbf_solver(solver_base):
 		self.constrain_derivative = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 		self.derivative_sum = ti.field(ti.float32, shape=particle_count)
 		self.pbf_lambda = ti.field(ti.float32, shape=particle_count)
-		self.epsilon = 100
+		self.epsilon = 100000000
 
 		self.particle_count = particle_count
 		self.delta_time = 1e-4
+		self.k = 0.000000005 # tension
+		self.c = 0.00000009 # viscosity
+
+		# self.k = 0.000000000
+		# self.c = 0.00000000
 
 		self.rho_0 = 1000
 		self.viscosity_epsilon = 0.01
@@ -98,7 +103,7 @@ class pbf_solver(solver_base):
 
 			v = ti.Vector([0, 0, 0])
 			self.ps.for_all_neighbor(i, self.update_vel, v)
-			self.ps.vel[i] += 0.00000009 * v
+			self.ps.vel[i] += self.c * v
 
 	@ti.func
 	def update_vel(self, i, j):
@@ -141,9 +146,9 @@ class pbf_solver(solver_base):
 		# 	print("kernel: ", self.spiky_kernel_derivative(self.ps.pos[i] - self.ps.pos[j], kernel_h) )
 		# 	print("distant", (self.ps.pos[i] - self.ps.pos[j]).norm())
 		# 	print('\n')
-		k = 0.000000005
+
 		n = 4
-		s_corr = -k * ((self.poly_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), kernel_h) / self.poly_kernel(0.1 * kernel_h, kernel_h))** n)
+		s_corr = -self.k * ((self.poly_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), kernel_h) / self.poly_kernel(0.1 * kernel_h, kernel_h))** n)
 		# print((self.spiky_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), kernel_h) / self.spiky_kernel(0.3 * kernel_h, kernel_h)))
 		return (self.pbf_lambda[i] + self.pbf_lambda[j] + s_corr) * self.spiky_kernel_derivative(self.ps.pos[i] - self.ps.pos[j],
 																						kernel_h)
