@@ -30,7 +30,7 @@ class ParticleSystem:
 		# Grid
 		grid_num_np = np.ceil(((self.box_max - self.box_min) / self.support_radius).to_numpy()).astype(np.int32)
 		self.grid_num = ti.Vector([grid_num_np[0], grid_num_np[1], grid_num_np[2]])
-		self.max_particle_in_grid = 80 # todo how to cal.
+		self.max_particle_in_grid = 80 		# todo how to cal.
 		# The first element is the count of the particle in this grid
 		self.grids = ti.field(ti.i32, shape=(self.grid_num[0], self.grid_num[1], self.grid_num[2], self.max_particle_in_grid + 10))
 

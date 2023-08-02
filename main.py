@@ -21,10 +21,6 @@ start_pos = ti.Vector([1, 1, 1])
 box_min = ti.Vector([0.0, 0.0, 0.0])
 box_max = ti.Vector([1.5, 3.0, 1.5])
 
-# pos = ti.Vector.field(3, ti.f32, shape=particle_num)
-# vel = ti.Vector.field(3, ti.f32, shape=particle_num)
-# acc = ti.Vector.field(3, ti.f32, shape=particle_num)
-
 
 box_vert = ti.Vector.field(3, ti.f32, shape=12)
 
@@ -62,12 +58,11 @@ if __name__ == "__main__":
 	# init_particle()
 	# kernel_test()
 	ps = ParticleSystem(box_min, box_max, particle_radius)
-	ps.test()
+	# ps.test()
 	# solver = wcsph_solver(ps)
 	solver = pbf_solver(ps)
-
 	frame_cnt = 0
-	step_cnt = 10
+	step_cnt = 1
 	# for i in range(1):
 	# 	solver.step()
 	while window.running:

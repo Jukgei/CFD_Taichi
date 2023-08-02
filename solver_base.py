@@ -1,6 +1,5 @@
 import taichi as ti
 
-kernel_h = 0.01 * 4
 
 
 @ti.data_oriented
@@ -8,9 +7,13 @@ class solver_base:
 
 	def __init__(self, particle_system):
 		particle_count = particle_system.particle_num
-		self.ps = particle_system
+		self.particle_count = particle_count
 		self.ps = particle_system
 		self.rho = ti.field(ti.float32, shape=particle_count)
+		self.delta_time = 1e-4
+		self.kernel_h = self.ps.particle_radius * 4
+		self.v_decay_proportion = 0.5
+
 
 	@ti.func
 	def compute_all_rho(self):
@@ -27,7 +30,7 @@ class solver_base:
 
 	@ti.func
 	def compute_rho(self, i, j):
-		return self.ps.particle_m * self.cubic_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), kernel_h)
+		return self.ps.particle_m * self.cubic_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), self.kernel_h)
 
 	@ti.func
 	def cubic_kernel(self, r, h):
@@ -77,7 +80,6 @@ class solver_base:
 		return ret
 
 	@ti.func
-	# pressure todo
 	def poly_kernel(self, r, h):
 		q = r / h
 		q2 = q * q
@@ -85,3 +87,15 @@ class solver_base:
 		if q <= 1:
 			ret = 315 / (64 * ti.math.pi * h ** 3) * ((1 - q2) ** 3)
 		return ret
+
+	@ti.kernel
+	def reset(self):
+		self.ps.acc.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]))
+
+	def step(self):
+
+		self.ps.reset_grid()
+
+		self.ps.update_grid()
+
+		self.reset()
