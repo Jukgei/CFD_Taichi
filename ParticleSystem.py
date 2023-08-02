@@ -7,8 +7,8 @@ class ParticleSystem:
 	def __init__(self, box_min, box_max, particle_radius):
 		# self.water_size = ti.Vector([0.5, 0.8, 0.5])
 		self.water_size = ti.Vector([0.3, 0.7, 0.3])
-		self.start_pos = ti.Vector([0.01, 0.01, 0.01])
-		# self.start_pos = ti.Vector([1.0, 1.0, 1.0])
+		# self.start_pos = ti.Vector([0.01, 0.01, 0.01])
+		self.start_pos = ti.Vector([0.75, 0.5, 0.75])
 		self.particle_radius = particle_radius
 		self.support_radius = 4 * self.particle_radius
 		# self.particle_m = 1000 * ((self.particle_radius * 2) ** 3) * ti.math.pi / 6
@@ -30,7 +30,7 @@ class ParticleSystem:
 		# Grid
 		grid_num_np = np.ceil(((self.box_max - self.box_min) / self.support_radius).to_numpy()).astype(np.int32)
 		self.grid_num = ti.Vector([grid_num_np[0], grid_num_np[1], grid_num_np[2]])
-		self.max_particle_in_grid = 30 # todo how to cal.
+		self.max_particle_in_grid = 80 # todo how to cal.
 		# The first element is the count of the particle in this grid
 		self.grids = ti.field(ti.i32, shape=(self.grid_num[0], self.grid_num[1], self.grid_num[2], self.max_particle_in_grid + 10))
 
@@ -80,8 +80,8 @@ class ParticleSystem:
 			if length > self.max_particle_in_grid:
 				print('WARNNING!!!!!', length, grid_index)
 				continue
-			if length > 30:
-				print(length, grid_index)
+			# if length > 30:
+			# 	print(length, grid_index)
 			self.grids[grid_index, length + 1] = i
 			self.belong_grid[i] = grid_index
 

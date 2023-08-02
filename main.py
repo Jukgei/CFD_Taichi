@@ -4,6 +4,7 @@ import taichi as ti
 import logging
 from ParticleSystem import ParticleSystem
 from wcsph_solver import wcsph_solver
+from pbf_solver import pbf_solver
 
 ti.init(ti.gpu, debug=False, device_memory_fraction=0.7, kernel_profiler=True)
 
@@ -42,51 +43,6 @@ for i, val in enumerate([0, 1, 0, 2, 1, 3, 2, 3, 4, 5, 4, 6, 5, 7, 6, 7, 0, 4, 1
 	box_lines_indices[i] = val
 
 
-
-@ti.func
-# pressure
-def poly_kernel(r, h):
-	ret = 0.0
-	if r <= h:
-		ret = 315 / (64 * ti.math.pi * h ** 9) * ((h ** 2 - r**2) **3)
-	return ret
-
-
-@ti.func
-# pressure
-def spiky_kernel(r, h):
-	ret = 0.0
-	if r <= h:
-		ret = 15 / (ti.math.pi * h ** 6) * ((h - r) **3)
-	return ret
-
-@ti.func
-def viscosity_kernel(r, h):
-	ret = 0.0
-	if r <= h:
-		a = - r ** 3 / (2 * h**3)
-		b = r ** 2 / (h **2)
-		c = h / (2 * r)
-		ret = 15 / (2 * ti.math.pi * h ** 3) * (a + b + c - 1)
-	return ret
-
-
-@ti.kernel
-def kernel_test():
-	r = 0.02
-	h = 0.04
-	poly = poly_kernel(r, h)
-	spiky = spiky_kernel(r, h)
-	viscosity = viscosity_kernel(r, h)
-	print("poly kernel value is", poly)
-	print("spiky kernel value is", spiky * 0.03)
-	print("viscosity kernel value is", viscosity)
-	# grid = ti.ceil(((box_max - box_min) / particle_radius), ti.i32)
-	# for offset in ti.grouped(ti.ndrange(*((-1, 2),) * 3)):
-	# 	print(offset)
-	# for offset in ti.grouped(ti.ndrange((-1,2), (-1, 2), (-1, 2))):
-	# 	print(offset)
-
 if __name__ == "__main__":
 
 	print("Simulation Start!")
@@ -107,11 +63,13 @@ if __name__ == "__main__":
 	# kernel_test()
 	ps = ParticleSystem(box_min, box_max, particle_radius)
 	ps.test()
-	solver = wcsph_solver(ps)
-	solver.sample_a_rho()
+	# solver = wcsph_solver(ps)
+	solver = pbf_solver(ps)
 
 	frame_cnt = 0
 	step_cnt = 5
+	for i in range(1):
+		solver.step()
 	while window.running:
 		gui = window.get_gui()
 		# with gui.sub_window("Sub Window", x=10, y=600, width=300, height=100):
