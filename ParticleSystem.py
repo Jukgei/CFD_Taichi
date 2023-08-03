@@ -4,28 +4,27 @@ import numpy as np
 @ti.data_oriented
 class ParticleSystem:
 
-	def __init__(self, box_min, box_max, particle_radius):
-		# self.water_size = ti.Vector([0.5, 0.8, 0.5])
-		self.water_size = ti.Vector([0.3, 0.7, 0.3])
-		self.start_pos = ti.Vector([0.01, 0.01, 0.01])
-		# self.start_pos = ti.Vector([0.75, 0.5, 0.75])
-		self.particle_radius = particle_radius
+	def __init__(self, config):
+		scene_config = config.get('scene')
+		solver_config = config.get('solver')
+		fluid_config = config.get('fluid')
+
+		self.water_size = ti.Vector(fluid_config.get('water_size'))
+		self.start_pos = ti.Vector(fluid_config.get('start_pos'))
+		self.particle_radius = scene_config.get('particle_radius')
 		self.support_radius = 4 * self.particle_radius
-		# self.particle_m = 1000 * ((self.particle_radius * 2) ** 3) * ti.math.pi / 6
 		self.particle_m = 1000 * ((self.particle_radius ) ** 3) * 8
-		# self.particle_m = 1000 * ((self.particle_radius * 2) ** 3) * 0.8
 
 		self.particle_num = int(
 			self.water_size.x / self.particle_radius * self.water_size.y / self.particle_radius * self.water_size.z / self.particle_radius)
 
 		self.pos = ti.Vector.field(3, ti.f32, shape=self.particle_num)
-		# self.pos_debug = ti.Vector.field(3, ti.f32, shape=27)
 		self.vel = ti.Vector.field(3, ti.f32, shape=self.particle_num)
 		self.acc = ti.Vector.field(3, ti.f32, shape=self.particle_num)
 		self.belong_grid = ti.Vector.field(3, ti.i32, shape=self.particle_num)
 
-		self.box_max = box_max
-		self.box_min = box_min
+		self.box_max = ti.Vector(scene_config.get('box_max'))
+		self.box_min = ti.Vector(scene_config.get('box_min'))
 
 		# Grid
 		grid_num_np = np.ceil(((self.box_max - self.box_min) / self.support_radius).to_numpy()).astype(np.int32)

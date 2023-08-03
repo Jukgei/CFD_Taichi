@@ -5,12 +5,15 @@ import taichi as ti
 @ti.data_oriented
 class solver_base:
 
-	def __init__(self, particle_system):
+	def __init__(self, particle_system, config):
 		particle_count = particle_system.particle_num
+		scene_config = config.get('scene')
+		solver_config = config.get('solver')
+		fluid_config = config.get('fluid')
 		self.particle_count = particle_count
 		self.ps = particle_system
 		self.rho = ti.field(ti.float32, shape=particle_count)
-		self.delta_time = 1e-4
+		self.delta_time = solver_config.get('delta_time')
 		self.kernel_h = self.ps.particle_radius * 4
 		self.v_decay_proportion = 0.5
 

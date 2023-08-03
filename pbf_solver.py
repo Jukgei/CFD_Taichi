@@ -5,8 +5,8 @@ from solver_base import solver_base
 @ti.data_oriented
 class pbf_solver(solver_base):
 
-	def __init__(self, particle_system):
-		super(pbf_solver, self).__init__(particle_system)
+	def __init__(self, particle_system, config):
+		super(pbf_solver, self).__init__(particle_system, config)
 		particle_count = particle_system.particle_num
 
 		self.constrain = ti.field(ti.float32, shape=particle_count)

@@ -4,8 +4,8 @@ from solver_base import solver_base
 
 class wcsph_solver(solver_base):
 
-	def __init__(self, particle_system):
-		super(wcsph_solver, self).__init__(particle_system)
+	def __init__(self, particle_system, config):
+		super(wcsph_solver, self).__init__(particle_system, config)
 		particle_count = particle_system.particle_num
 		self.rho = ti.field(ti.float32, shape=particle_count)
 		self.pressure_gradient = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
