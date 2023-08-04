@@ -6,9 +6,9 @@
     "gravity": 9.8
   },
   "solver": {
-    "name" : "wcsph",
-    "delta_time" : 1e-4,
-    "iter_cnt" : 5
+    "name" : "iisph",
+    "delta_time" : 1e-3,
+    "iter_cnt" : 1
   },
   "fluid" : {
     "start_pos" : [0.01, 0.01, 0.01],

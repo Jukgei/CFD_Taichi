@@ -97,6 +97,8 @@ class ParticleSystem:
 				particle_j = self.grids[I + center, index+1]
 				if particle_j == i:
 					continue
+				if (self.pos[i] - self.pos[particle_j]).norm() > self.support_radius:
+					continue
 				ret += task(i, particle_j)
 
 	@ti.kernel

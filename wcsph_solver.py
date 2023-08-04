@@ -13,7 +13,6 @@ class wcsph_solver(solver_base):
 		self.viscosity = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 		self.tension = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 
-		self.rho_0 = 1000
 		self.viscosity_epsilon = 0.01
 		self.viscosity_c_s = 5 #TODO 31
 		self.viscosity_alpha = 0.08

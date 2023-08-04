@@ -20,7 +20,7 @@ class pbf_solver(solver_base):
 		self.c = 5e-8 	# viscosity
 		self.s_corr_factor = 0.1
 
-		self.rho_0 = 1000
+
 
 	@ti.kernel
 	def externel_force_predict_pos(self):

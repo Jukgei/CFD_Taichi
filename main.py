@@ -63,7 +63,8 @@ if __name__ == "__main__":
 	solver = solver_(ps, config)
 	frame_cnt = 0
 	iter_cnt = solver_config.get('iter_cnt')
-
+	# for i in range(10):
+	# 	solver.step()
 	while window.running:
 		# Debug GUI
 		gui = window.get_gui()
@@ -80,8 +81,8 @@ if __name__ == "__main__":
 
 		for i in range(iter_cnt):
 			solver.step()
-		# ti.profiler.print_kernel_profiler_info()
-		# ti.profiler.clear_kernel_profiler_info()
+			# ti.profiler.print_kernel_profiler_info()
+			# ti.profiler.clear_kernel_profiler_info()
 		# ti.profiler.print_kernel_profiler_info()
 
 		scene.lines(box_vert, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=2.0)

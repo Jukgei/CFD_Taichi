@@ -16,7 +16,7 @@ class solver_base:
 		self.delta_time = solver_config.get('delta_time')
 		self.kernel_h = self.ps.particle_radius * 4
 		self.v_decay_proportion = 0.5
-
+		self.rho_0 = 1000
 
 	@ti.func
 	def compute_all_rho(self):
