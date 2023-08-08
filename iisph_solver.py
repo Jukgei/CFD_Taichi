@@ -18,6 +18,7 @@ class iisph_solver(solver_base):
 		self.rho_iter = ti.field(ti.float32, shape=self.particle_count)
 		self.p_iter = ti.field(ti.float32, shape=self.particle_count)
 		self.p_past = ti.field(ti.float32, shape=self.particle_count)
+		self.r_sum = ti.field(ti.float32, shape=self.particle_count)
 		self.f_press = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
 
 		self.omega = 0.5
@@ -44,7 +45,8 @@ class iisph_solver(solver_base):
 		for i in range(self.particle_count):
 			rho_adv = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho_adv, rho_adv)
-			self.rho_adv[i] = ti.max(rho_adv * self.delta_time + self.rho[i], self.rho[i])
+			# self.rho_adv[i] = ti.max(rho_adv * self.delta_time + self.rho[i], self.rho[i])
+			self.rho_adv[i] = rho_adv * self.delta_time + self.rho[i]
 			self.p_iter[i] = 0.5 * self.p_past[i]
 			a_ii = 0.0
 			self.ps.for_all_neighbor(i, self.compute_a_ii, a_ii)
@@ -61,13 +63,16 @@ class iisph_solver(solver_base):
 		# rho_avg /= self.particle_count
 		# print("Iter 0 ", rho_avg)
 		# while ti.abs(rho_avg - self.rho_0) > self.rho_0 * 0.05:# or l < 2:
-		while l < 5:
+		residual = 10000
+		while residual > 1 and l < 500:
 
 			self.compute_all_d_ij()
 
 			self.update_p()
 
 			l += 1
+
+			residual = self.compute_residual()
 			# rho_avg = 0.0
 			# self.compute_all_rho_adv()
 			# for i in range(self.particle_count):
@@ -75,6 +80,17 @@ class iisph_solver(solver_base):
 			# rho_avg /= self.particle_count
 			# # print("Iter 0 ", rho_avg)
 			# print("l is ", l, rho_avg)
+
+		print("Iter cnt: ", l, residual)
+
+	@ti.kernel
+	def compute_residual(self) -> ti.f32:
+		residual = 0.0
+		for i in range(self.particle_count):
+			residual += (self.a_ii[i] * self.p_iter[i] + self.r_sum[i] + self.rho_adv[i] - 1000) ** 2
+
+		# print('residual: ', residual / self.particle_count)
+		return residual / self.particle_count
 
 	@ti.kernel
 	def compute_all_rho_adv(self):
@@ -106,6 +122,7 @@ class iisph_solver(solver_base):
 		for i in range(self.particle_count):
 			sum = 0.0
 			self.ps.for_all_neighbor(i, self.sum_factor, sum)
+			self.r_sum[i] = sum
 			self.p_iter[i] = (1 - self.omega) * self.p_iter[i] + self.omega * (self.rho_0 - self.rho_adv[i] - sum) / (self.a_ii[i])
 
 	@ti.func
@@ -124,7 +141,7 @@ class iisph_solver(solver_base):
 			self.ps.vel[i] = self.v_adv[i] + self.delta_time * self.f_press[i] / self.ps.particle_m
 			self.ps.pos[i] = self.ps.pos[i] + self.delta_time * self.ps.vel[i]
 
-
+		self.check_valid()
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
 				if self.ps.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
@@ -179,7 +196,7 @@ class iisph_solver(solver_base):
 		v_ij = self.v_adv[i] - self.v_adv[j]
 		q = self.ps.pos[i] - self.ps.pos[j]
 		#TODO dot?
-		return self.ps.particle_m * v_ij.dot( self.cubic_kernel_derivative(q, self.kernel_h))
+		return self.ps.particle_m * v_ij.dot(self.cubic_kernel_derivative(q, self.kernel_h))
 
 	def step(self):
 		super(iisph_solver, self).step()

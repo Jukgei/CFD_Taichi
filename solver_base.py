@@ -102,3 +102,29 @@ class solver_base:
 		self.ps.update_grid()
 
 		self.reset()
+
+	@ti.func
+	def check_valid(self):
+		for i in range(self.particle_count):
+
+			is_false = 0
+			if ti.math.isnan(self.ps.pos[i]).any() or ti.math.isinf(self.ps.pos[i]).any():
+				print("Position {} invalid, {}".format(i, self.ps.pos[i]))
+				is_false = 1
+
+
+			if ti.math.isnan(self.ps.vel[i]).any() or ti.math.isinf(self.ps.vel[i]).any():
+				print("Velocity {} invalid, {}".format(i, self.ps.vel[i]))
+				is_false = 1
+
+			if ti.math.isnan(self.ps.acc[i]).any() or ti.math.isinf(self.ps.acc[i]).any():
+				print("Acceleration {} invalid, {}".format(i, self.ps.acc[i]))
+				is_false = 1
+
+			if is_false == 1:
+				self.print_debug_info(i)
+				# exit()
+
+	@ti.func
+	def print_debug_info(self, i):
+		print(self.rho[i])

@@ -63,8 +63,14 @@ if __name__ == "__main__":
 	solver = solver_(ps, config)
 	frame_cnt = 0
 	iter_cnt = solver_config.get('iter_cnt')
-	# for i in range(10):
+	# for i in range(800):
 	# 	solver.step()
+	# 	print("Frame: ", i)
+	# a = []
+	# for i in range(ps.particle_num):
+	# 	a.append(ps.vel[i].norm())
+	# 	# print("vel{}, {}".format(i, ps.vel[i]))
+	# print("Max {}, Min {}".format(max(a), min(a)))
 	while window.running:
 		# Debug GUI
 		gui = window.get_gui()
