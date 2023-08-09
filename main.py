@@ -63,9 +63,9 @@ if __name__ == "__main__":
 	solver = solver_(ps, config)
 	frame_cnt = 0
 	iter_cnt = solver_config.get('iter_cnt')
-	# for i in range(800):
-	# 	solver.step()
-	# 	print("Frame: ", i)
+	for i in range(2000):
+		solver.step()
+		print("Frame: ", i)
 	# a = []
 	# for i in range(ps.particle_num):
 	# 	a.append(ps.vel[i].norm())
@@ -85,8 +85,8 @@ if __name__ == "__main__":
 
 		scene.particles(ps.pos, color=(0.0, 0.26, 0.68), radius=ps.particle_radius)
 
-		for i in range(iter_cnt):
-			solver.step()
+		# for i in range(iter_cnt):
+		# 	solver.step()
 			# ti.profiler.print_kernel_profiler_info()
 			# ti.profiler.clear_kernel_profiler_info()
 		# ti.profiler.print_kernel_profiler_info()

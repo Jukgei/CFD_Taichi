@@ -18,10 +18,11 @@ class iisph_solver(solver_base):
 		self.rho_iter = ti.field(ti.float32, shape=self.particle_count)
 		self.p_iter = ti.field(ti.float32, shape=self.particle_count)
 		self.p_past = ti.field(ti.float32, shape=self.particle_count)
+		self.p_new_buff = ti.field(ti.float32, shape=self.particle_count)
 		self.r_sum = ti.field(ti.float32, shape=self.particle_count)
 		self.f_press = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
 
-		self.omega = 0.5
+		self.omega = 0.2
 
 	@ti.kernel
 	def reset(self):
@@ -55,13 +56,6 @@ class iisph_solver(solver_base):
 	# @ti.kernel
 	def pressure_solve(self):
 		l = 0
-		# rho_avg = self.rho.sum() / self.particle_count
-		# rho_avg = 0.0
-		# self.compute_all_rho_adv()
-		# for i in range(self.particle_count):
-		# 	rho_avg += self.rho_iter[i]
-		# rho_avg /= self.particle_count
-		# print("Iter 0 ", rho_avg)
 		# while ti.abs(rho_avg - self.rho_0) > self.rho_0 * 0.05:# or l < 2:
 		residual = 10000
 		while residual > 1 and l < 500:
@@ -73,13 +67,6 @@ class iisph_solver(solver_base):
 			l += 1
 
 			residual = self.compute_residual()
-			# rho_avg = 0.0
-			# self.compute_all_rho_adv()
-			# for i in range(self.particle_count):
-			# 	rho_avg += self.rho_iter[i]
-			# rho_avg /= self.particle_count
-			# # print("Iter 0 ", rho_avg)
-			# print("l is ", l, rho_avg)
 
 		print("Iter cnt: ", l, residual)
 
@@ -91,18 +78,6 @@ class iisph_solver(solver_base):
 
 		# print('residual: ', residual / self.particle_count)
 		return residual / self.particle_count
-
-	@ti.kernel
-	def compute_all_rho_adv(self):
-		self.compute_all_press_force()
-		self.compute_all_rho_iter()
-
-	@ti.func
-	def compute_all_rho_iter(self):
-		for i in range(self.particle_count):
-			rho_iter = 0.0
-			self.ps.for_all_neighbor(i, self.compute_rho_iter, rho_iter)
-			self.rho_iter[i] = self.delta_time * self.delta_time * rho_iter + self.rho_adv[i]
 
 	@ti.func
 	def compute_rho_iter(self, i, j):
@@ -123,8 +98,17 @@ class iisph_solver(solver_base):
 			sum = 0.0
 			self.ps.for_all_neighbor(i, self.sum_factor, sum)
 			self.r_sum[i] = sum
-			self.p_iter[i] = (1 - self.omega) * self.p_iter[i] + self.omega * (self.rho_0 - self.rho_adv[i] - sum) / (self.a_ii[i])
+			# todo: BUG
+		for i in range(self.particle_count):
+			self.p_new_buff[i] = (1 - self.omega) * self.p_iter[i] + self.omega * (self.rho_0 - self.rho_adv[i] - self.r_sum[i]) / (self.a_ii[i])
+			# self.p_iter[i] = (1 - self.omega) * self.p_iter[i] + self.omega * (self.rho_0 - self.rho_adv[i] - sum) / (self.a_ii[i])
 
+		for i in range(self.particle_count):
+			self.p_iter[i] = self.p_new_buff[i]
+			# if self.p_new_buff[i] > 0:
+			# 	self.p_iter[i] = self.p_new_buff[i]
+			# else:
+			# 	self.p_iter[i] = 0
 	@ti.func
 	def compute_all_press_force(self):
 
@@ -206,3 +190,5 @@ class iisph_solver(solver_base):
 		self.pressure_solve()
 
 		self.intergation()
+
+		# print("Inter Once done")
