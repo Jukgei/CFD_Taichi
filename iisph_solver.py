@@ -8,7 +8,8 @@ class iisph_solver(solver_base):
 		super(iisph_solver, self).__init__(particle_system, config)
 
 		self.v_adv = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
-		self.f_adv = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)  # include gravity, surface tension, viscosity
+		self.f_adv = ti.Vector.field(3, dtype=ti.float32,
+									 shape=self.particle_count)  # include gravity, surface tension, viscosity
 		self.d_ii = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
 		self.a_ii = ti.field(ti.float32, shape=self.particle_count)
 		self.d_ij = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
@@ -22,12 +23,13 @@ class iisph_solver(solver_base):
 		self.r_sum = ti.field(ti.float32, shape=self.particle_count)
 		self.f_press = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
 
-		self.omega = 0.2
+		self.omega = 0.5
+		self.max_iter_cnt = 50
+		self.min_iter_cnt = 2
+		self.rho_err_percent = 0.01
 
 	@ti.kernel
 	def reset(self):
-		# self.ps.acc.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]))
-		# self.f_adv.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]) * self.ps.particle_m)
 		pass
 
 	@ti.kernel
@@ -56,10 +58,10 @@ class iisph_solver(solver_base):
 	# @ti.kernel
 	def pressure_solve(self):
 		l = 0
-		# while ti.abs(rho_avg - self.rho_0) > self.rho_0 * 0.05:# or l < 2:
-		residual = 10000
-		while residual > 1 and l < 500:
-
+		residual = ti.math.inf
+		residuals = []
+		err = self.rho_err_percent * self.rho_0 * 0.01
+		while (residual > err or l < self.min_iter_cnt) and l < self.max_iter_cnt:
 			self.compute_all_d_ij()
 
 			self.update_p()
@@ -67,23 +69,32 @@ class iisph_solver(solver_base):
 			l += 1
 
 			residual = self.compute_residual()
-
+			residuals.append(residual)
 		print("Iter cnt: ", l, residual)
+
+		if l == 50:
+			print(residuals)
+			exit()
 
 	@ti.kernel
 	def compute_residual(self) -> ti.f32:
 		residual = 0.0
+		cnt = 0
+		avg = 0.0
 		for i in range(self.particle_count):
-			residual += (self.a_ii[i] * self.p_iter[i] + self.r_sum[i] + self.rho_adv[i] - 1000) ** 2
-
-		# print('residual: ', residual / self.particle_count)
-		return residual / self.particle_count
+			if self.p_iter[i] > 0.0:
+				residual += (self.a_ii[i] * self.p_iter[i] + self.r_sum[i] + self.rho_adv[i] - 1000)  # ** 2
+				cnt += 1
+		if cnt > 0:
+			avg = residual / cnt
+		return avg
 
 	@ti.func
 	def compute_rho_iter(self, i, j):
 		q = self.ps.pos[i] - self.ps.pos[j]
 		# todo dot?
-		return self.ps.particle_m * (self.f_press[i] / self.ps.particle_m - self.f_press[j] / self.ps.particle_m).dot(self.cubic_kernel_derivative(q, self.kernel_h))
+		return self.ps.particle_m * (self.f_press[i] / self.ps.particle_m - self.f_press[j] / self.ps.particle_m).dot(
+			self.cubic_kernel_derivative(q, self.kernel_h))
 
 	@ti.kernel
 	def compute_all_d_ij(self):
@@ -98,17 +109,16 @@ class iisph_solver(solver_base):
 			sum = 0.0
 			self.ps.for_all_neighbor(i, self.sum_factor, sum)
 			self.r_sum[i] = sum
-			# todo: BUG
 		for i in range(self.particle_count):
-			self.p_new_buff[i] = (1 - self.omega) * self.p_iter[i] + self.omega * (self.rho_0 - self.rho_adv[i] - self.r_sum[i]) / (self.a_ii[i])
-			# self.p_iter[i] = (1 - self.omega) * self.p_iter[i] + self.omega * (self.rho_0 - self.rho_adv[i] - sum) / (self.a_ii[i])
+			if ti.abs(self.a_ii[i]) > 1e-7:
+				self.p_new_buff[i] = (1 - self.omega) * self.p_iter[i] + self.omega * (
+						self.rho_0 - self.rho_adv[i] - self.r_sum[i]) / (self.a_ii[i])
+			else:
+				self.p_new_buff[i] = 0.0
 
 		for i in range(self.particle_count):
-			self.p_iter[i] = self.p_new_buff[i]
-			# if self.p_new_buff[i] > 0:
-			# 	self.p_iter[i] = self.p_new_buff[i]
-			# else:
-			# 	self.p_iter[i] = 0
+			self.p_iter[i] = ti.max(self.p_new_buff[i], 0.0)
+
 	@ti.func
 	def compute_all_press_force(self):
 
@@ -125,7 +135,7 @@ class iisph_solver(solver_base):
 			self.ps.vel[i] = self.v_adv[i] + self.delta_time * self.f_press[i] / self.ps.particle_m
 			self.ps.pos[i] = self.ps.pos[i] + self.delta_time * self.ps.vel[i]
 
-		self.check_valid()
+		# self.check_valid()
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
 				if self.ps.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
@@ -143,7 +153,9 @@ class iisph_solver(solver_base):
 	def compute_press_force(self, i, j):
 		q = self.ps.pos[i] - self.ps.pos[j]
 
-		return self.ps.particle_m * (self.p_iter[i] / ti.pow(self.rho[i], 2) + self.p_iter[j] / ti.pow(self.rho[j], 2)) * self.cubic_kernel_derivative(q, self.kernel_h)
+		return self.ps.particle_m * (self.p_iter[i] / ti.pow(self.rho[i], 2) + self.p_iter[j] / ti.pow(self.rho[j],
+																									   2)) * self.cubic_kernel_derivative(
+			q, self.kernel_h)
 
 	@ti.func
 	def sum_factor(self, i, j):
@@ -153,7 +165,6 @@ class iisph_solver(solver_base):
 		d_ji = - self.delta_time * self.delta_time * self.ps.particle_m / (
 				self.rho[i] * self.rho[i]) * w_ji * self.p_iter[i]
 		return self.ps.particle_m * (self.d_ij[i] - self.d_ii[j] * self.p_iter[j] - (self.d_ij[j] - d_ji)).dot(w_ij)
-
 
 	@ti.func
 	def compute_d_ii(self, i, j):
@@ -166,7 +177,7 @@ class iisph_solver(solver_base):
 		cubic_kernel_derivative = self.cubic_kernel_derivative(q, self.kernel_h)
 		# todo  check is rho[i] ? or rho[j]?
 		d_ji = - self.delta_time * self.delta_time * self.ps.particle_m / (
-					self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(-q, self.kernel_h)
+				self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(-q, self.kernel_h)
 		return self.ps.particle_m * (self.d_ii[i] - d_ji).dot(cubic_kernel_derivative)
 
 	@ti.func
@@ -179,7 +190,6 @@ class iisph_solver(solver_base):
 	def compute_rho_adv(self, i, j):
 		v_ij = self.v_adv[i] - self.v_adv[j]
 		q = self.ps.pos[i] - self.ps.pos[j]
-		#TODO dot?
 		return self.ps.particle_m * v_ij.dot(self.cubic_kernel_derivative(q, self.kernel_h))
 
 	def step(self):
@@ -190,5 +200,3 @@ class iisph_solver(solver_base):
 		self.pressure_solve()
 
 		self.intergation()
-
-		# print("Inter Once done")
