@@ -1,0 +1,17 @@
+{
+  "scene": {
+    "box_min" : [0.0, 0.0, 0.0],
+    "box_max" : [1.5, 3.0, 1.5],
+    "particle_radius" : 0.025,
+    "gravity": 9.8
+  },
+  "solver": {
+    "name" : "iisph",
+    "delta_time" : 1e-3,
+    "iter_cnt" : 1
+  },
+  "fluid" : {
+    "start_pos" : [0.025, 0.025, 0.025],
+    "water_size": [0.3, 0.7, 0.3]
+  }
+}
