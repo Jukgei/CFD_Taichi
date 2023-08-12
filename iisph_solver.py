@@ -14,7 +14,7 @@ class iisph_solver(solver_base):
 		self.a_ii = ti.field(ti.float32, shape=self.particle_count)
 		self.d_ij = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
 
-		self.f_adv.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]) * self.ps.particle_m)
+		self.f_adv.fill(self.gravity * ti.Vector([0.0, -1.0, 0.0]) * self.ps.particle_m)
 		self.rho_adv = ti.field(ti.float32, shape=self.particle_count)
 		self.rho_iter = ti.field(ti.float32, shape=self.particle_count)
 		self.p_iter = ti.field(ti.float32, shape=self.particle_count)
@@ -74,7 +74,7 @@ class iisph_solver(solver_base):
 
 		if l == 50:
 			print(residuals)
-			exit()
+			# exit()
 
 	@ti.kernel
 	def compute_residual(self) -> ti.f32:
