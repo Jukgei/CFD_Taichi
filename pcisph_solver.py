@@ -1,7 +1,6 @@
 import taichi as ti
 from solver_base import solver_base
 
-
 class pcisph_solver(solver_base):
 
 	def __init__(self, particle_system, config):
@@ -15,16 +14,14 @@ class pcisph_solver(solver_base):
 		self.rho_err = ti.field(ti.float32, shape=self.ps.particle_num)
 		self.press_iter = ti.field(ti.float32, shape=self.ps.particle_num)
 
-		self.rho_max_err_percent = 1
+		self.rho_max_err_percent = .1
 		self.min_iteration = 1
-		self.max_iteration = 500
+		self.max_iteration = 80
 
-		self.beta = self.delta_time * self.delta_time * self.ps.particle_m * self.ps.particle_m * 2 / self.rho_0
+		self.beta = self.delta_time * self.delta_time * self.ps.particle_m * self.ps.particle_m * 2 / (self.rho_0 ** 2)
 		self.delta = ti.field(ti.float32, shape=())
 
 		self.pre_compute()
-		self.delta[None] = 100000
-		# self.delta[None] = 1
 
 	def pre_compute(self):
 		self.ps.reset_grid()
@@ -41,21 +38,18 @@ class pcisph_solver(solver_base):
 	def pre_compute_delta(self, full_neighbor_index: ti.int32):
 		sum = ti.Vector([0.0, 0.0, 0.0])
 		square_sum = 0.0
-		# self.ps.for_all_neighbor(i, self.compute_press, press_iter)
 		self.ps.for_all_neighbor(full_neighbor_index, self.compute_sum, sum)
 		self.ps.for_all_neighbor(full_neighbor_index, self.compute_square_sum, square_sum)
 		self.delta[None] = 1 / ((sum.dot(sum) + square_sum) * self.beta)
-		print('sum {}'.format(sum))
 
-
-
-	# @ti.kernel
 	def iteration(self):
-		rho_err_avg = ti.math.inf
+
 		iter_cnt = 0
 		self.predict_vel_pos()
 
 		self.predict_rho()
+
+		rho_err_avg = self.compute_residual()
 
 		while (rho_err_avg > self.rho_0 * self.rho_max_err_percent * 0.01 or iter_cnt < self.min_iteration) and iter_cnt < self.max_iteration:
 
@@ -77,9 +71,6 @@ class pcisph_solver(solver_base):
 		for i in range(self.particle_count):
 			self.vel_predict[i] = self.ps.vel[i] + self.delta_time * (self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
 			self.pos_predict[i] = self.ps.pos[i] + self.delta_time * self.vel_predict[i]
-			#TODO BUG
-			# delta_x = self.pos_predict[i] - self.ps.pos[i]
-			# print('delta_x: {}, accuracy {}'.format(delta_x,  (self.delta_time ** 2) * ( self.ext_force[i] + self.press_force[i]) / self.ps.particle_m - delta_x))
 
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
@@ -94,31 +85,16 @@ class pcisph_solver(solver_base):
 	@ti.kernel
 	def predict_rho(self):
 		for i in range(self.particle_count):
-			# rho_predict = self.cubic_kernel(0.0, self.kernel_h)
 			rho_predict = 0.0
-			# delta_rho_predict = 0.0
-			# self.ps.for_all_neighbor(i, self.compute_delta_rho_predict, delta_rho_predict)
 			self.ps.for_all_neighbor(i, self.compute_rho_predict, rho_predict)
 			self.rho_predict[i] = rho_predict * self.ps.particle_m
-			print('rho_predict[{}]:{}'.format(i, rho_predict))
 			self.rho_err[i] = self.rho_predict[i] - self.rho_0
-			self.rho_err[i] = ti.max(self.rho_predict[i] - self.rho_0, 0.0)
 
 	@ti.kernel
 	def iter_press(self):
 		for i in range(self.particle_count):
-			# sum = ti.Vector([0.0, 0.0, 0.0])
-			# square_sum = 0.0
-			# # self.ps.for_all_neighbor(i, self.compute_press, press_iter)
-			# self.ps.for_all_neighbor(i, self.compute_sum_pre, sum)
-			# self.ps.for_all_neighbor(i, self.compute_square_sum_pre, square_sum)
-			# # TODO: numberical problem self.beta is less than 1e-9
-			# press_iter = - self.rho_err[i] / ((- sum.dot(sum) - square_sum) * self.beta)
-
 			self.press_iter[i] += self.rho_err[i] * self.delta[None]
 			self.press_iter[i] = ti.max(0.0, self.press_iter[i])
-			# if i == 0:
-			# 	print('press_iter {}'.format(- sum.dot(sum) - square_sum))
 
 	@ti.kernel
 	def update_press_force(self):
@@ -127,27 +103,12 @@ class pcisph_solver(solver_base):
 			self.ps.for_all_neighbor(i, self.compute_press_force, press_force)
 			self.press_force[i] = - press_force * self.ps.particle_m * self.ps.particle_m
 
-			# if i == 0:
-			# 	print('press force[0] {}'.format(press_force))
-
 	@ti.kernel
 	def compute_residual(self) -> ti.f32:
 		rho_err_sum = 0.0
-		cnt = 0
-		avg = 0.0
 		for i in range(self.particle_count):
-			# if self.press_iter[i] > 0:
-
-			# rho_err_sum += ti.abs(self.rho_err[i])
 			rho_err_sum += self.rho_err[i]
-			cnt += 1
-			# print('rho_err[{}]: {}'.format(i, self.rho_err[i]))
-		# avg = 0.0
-		# if cnt > 0:
-		avg = rho_err_sum / cnt
-		# else:
-		# 	avg = 0.0
-		return avg
+		return rho_err_sum / self.particle_count
 
 	@ti.func
 	def compute_rho_predict(self, i, j):
@@ -159,7 +120,6 @@ class pcisph_solver(solver_base):
 	def compute_sum(self, i, j):
 		q = self.ps.pos[i] - self.ps.pos[j]
 		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
-		# print('i: {}, j:{}, q: {}, dw_ij: {}'.format(i, j, q.norm(), dw_ij))
 		return dw_ij
 
 	@ti.func
@@ -173,7 +133,6 @@ class pcisph_solver(solver_base):
 	def compute_press_force(self, i, j):
 		q = self.ps.pos[i] - self.ps.pos[j]
 		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
-		# TODO: why use rho_0
 		return (self.press_iter[i] + self.press_iter[j]) * dw_ij / (self.rho_0 ** 2)
 
 	@ti.kernel
@@ -203,7 +162,6 @@ class pcisph_solver(solver_base):
 	def reset(self):
 		self.press_iter.fill(0)
 		self.press_force.fill(ti.Vector([0.0, 0.0, 0.0]))
-
 
 	def step(self):
 		super(pcisph_solver, self).step()
