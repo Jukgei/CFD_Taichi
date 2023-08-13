@@ -70,15 +70,7 @@ class ParticleSystem:
 
 	# @ti.kernel
 	def test(self):
-		pass
-		# print('213213:', self.grids[0].length())
-		# self.grids[0].append(1)
-		# print(self.grids[0,0])
-		# for i in self.grids[0]:
-		# 	print(i)
-		# print('213213:', self.x[0].length(), self.x[0])
 		self.reset_grid()
-		# exit()
 		self.update_grid()
 		self.check_all_grid()
 
@@ -90,17 +82,37 @@ class ParticleSystem:
 			grid_index_3d = self.get_particle_grid_index_3d(self.pos[i])
 			grid_index_1d = self.get_particle_grid_index_1d(grid_index_3d)
 			self.grids[grid_index_1d].append(i)
-			# if self.grids[grid_index, 0] >= self.max_particle_in_grid:
-			# 	print("FIRST DETECT WARNNING!!!!!!", grid_index, self.pos[i], self.vel[i], self.acc[i])
-			# 	continue
-			# length = ti.atomic_add(self.grids[grid_index, 0], 1)
-			# if length > self.max_particle_in_grid:
-			# 	print('WARNNING!!!!!', length, grid_index)
-			# 	continue
-			# # if length > 30:
-			# # 	print(length, grid_index)
-			# self.grids[grid_index, length + 1] = i
 			self.belong_grid[i] = grid_index_3d
+
+	@ti.kernel
+	def get_max_neighbor_particle_index(self) -> ti.int32:
+
+		max_count = -1
+		max_index = -1
+		for i in range(self.particle_num):
+			neighbor_cnt = 0
+			center = self.get_particle_grid_index_3d(self.pos[i])
+			for I in ti.grouped(ti.ndrange((-1, 2), (-1, 2), (-1, 2))):
+				if (I + center >= self.grid_num).any():
+					continue
+				if not (I + center >= 0).all():
+					continue
+				_1d_index = self.get_particle_grid_index_1d(I + center)
+				count = self.grids[_1d_index].length()
+				for index in range(count):
+					particle_j = self.grids[_1d_index, index]
+					if particle_j == i:
+						continue
+					if (self.pos[i] - self.pos[particle_j]).norm() > self.support_radius:
+						continue
+					neighbor_cnt += 1
+			# grid_index_1d = self.get_particle_grid_index_1d(grid_index_3d)
+			# count = self.grids[grid_index_1d].length()
+			new_max = ti.atomic_max(max_count, neighbor_cnt)
+			if new_max == neighbor_cnt:
+				max_index = i
+		print('max_index is {}, length is {}'.format(max_index, max_count))
+		return max_index
 
 	@ti.func
 	def for_all_neighbor(self, i, task: ti.template(), ret: ti.template()):
