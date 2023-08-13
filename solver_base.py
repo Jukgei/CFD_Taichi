@@ -15,8 +15,11 @@ class solver_base:
 		self.rho = ti.field(ti.float32, shape=particle_count)
 		self.delta_time = solver_config.get('delta_time')
 		self.kernel_h = self.ps.particle_radius * 4
-		self.v_decay_proportion = 0.5
+		self.v_decay_proportion = 0.9
 		self.rho_0 = 1000
+		self.gravity = scene_config.get('gravity')
+
+		print("\033[32m[Solver]: {}\033[0m".format(solver_config.get('name')))
 
 	@ti.func
 	def compute_all_rho(self):
