@@ -64,7 +64,7 @@ class pcisph_solver(solver_base):
 			# error
 			rho_err_avg = self.compute_residual()
 			iter_cnt += 1
-			print('		Iter cnt: {}, error: {}'.format(iter_cnt, rho_err_avg))
+			# print('		Iter cnt: {}, error: {}'.format(iter_cnt, rho_err_avg))
 
 	@ti.kernel
 	def predict_vel_pos(self):
