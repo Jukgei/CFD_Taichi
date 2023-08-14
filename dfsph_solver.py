@@ -69,7 +69,6 @@ class dfsph_solver(solver_base):
 	def iter_all_vel_adv(self):
 
 		for i in range(self.particle_count):
-
 			vel_adv = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.iter_vel_adv, vel_adv)
 			self.vel_adv[i] -= vel_adv * self.delta_time
@@ -187,6 +186,10 @@ class dfsph_solver(solver_base):
 
 		self.compute_all_position()
 
+		self.ps.reset_grid()
+
+		self.ps.update_grid()
+
 		self.update_density()
 
 		self.update_alpha()
@@ -196,6 +199,8 @@ class dfsph_solver(solver_base):
 		self.update_velocity()
 
 	def step(self):
+		super(dfsph_solver, self).step()
+
 		self.initialize()
 
 		self.iterate()
