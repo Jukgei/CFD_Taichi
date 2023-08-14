@@ -7,9 +7,9 @@ class dfsph_solver(solver_base):
 		super(dfsph_solver, self).__init__(particle_system, config)
 
 		self.alpha = ti.field(ti.float32, shape=self.particle_count)
+		self.rho_adv = ti.field(ti.float32, shape=self.particle_count)
 		self.rho_derivative = ti.field(ti.float32, shape=self.particle_count)
-		self.vel_adv = ti.Vector.field(3, ti.float33, shape=self.particle_count)
-		self.rho_adv = ti.Vector.field(3, ti.float33, shape=self.particle_count)
+		self.vel_adv = ti.Vector.field(3, ti.float32, shape=self.particle_count)
 		self.force_ext = ti.Vector.field(3, ti.float32, shape=self.particle_count)
 		self.force_ext.fill(self.gravity * ti.Vector([0.0, -1.0, 0.0]) * self.ps.particle_m)
 
@@ -45,7 +45,7 @@ class dfsph_solver(solver_base):
 		# TODO: viscosity and surface tension
 		pass
 
-	@ti.func
+	@ti.kernel
 	def compute_all_vel_adv(self):
 		for i in range(self.particle_count):
 			self.vel_adv[i] = self.ps.vel[i] + self.delta_time * self.force_ext[i] / self.ps.particle_m
@@ -54,7 +54,7 @@ class dfsph_solver(solver_base):
 	def compute_all_rho_adv(self) -> ti.float32:
 		rho_avg = 0.0
 		for i in range(self.particle_count):
-			rho_adv = 0
+			rho_adv = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho_adv, rho_adv)
 			self.rho_adv[i] = self.rho[i] + self.delta_time * rho_adv
 			rho_avg += self.rho_adv[i]
@@ -87,13 +87,15 @@ class dfsph_solver(solver_base):
 		rho_avg = ti.math.inf
 		iter_cnt = 0
 
-		while iter_cnt < 0 or rho_avg - self.rho_0 > self.density_threshold * self.rho_0 * 0.01:
+		while iter_cnt < self.min_iteration_density or rho_avg - self.rho_0 > self.density_threshold * self.rho_0 * 0.01:
 
 			rho_avg = self.compute_all_rho_adv()
 
 			self.iter_all_vel_adv()
 
 			iter_cnt += 1
+
+			print('[density iteration] count: {}, error {}'.format(iter_cnt, rho_avg - self.rho_0))
 
 	@ti.kernel
 	def compute_all_position(self):
@@ -128,6 +130,12 @@ class dfsph_solver(solver_base):
 			avg += rho_derivative
 		return avg / self.particle_count
 
+	@ti.func
+	def compute_rho_derivative(self, i, j):
+		# todo: check formula again & has a same function
+		q = self.ps.pos[i] - self.ps.pos[j]
+		return self.ps.particle_m * (self.vel_adv[i] - self.vel_adv[j]).dot(self.cubic_kernel_derivative(q, self.kernel_h))
+
 	@ti.kernel
 	def iter_all_vel_adv_about_divergence(self):
 		for i in range(self.particle_count):
@@ -150,13 +158,15 @@ class dfsph_solver(solver_base):
 		rho_divergence_avg = ti.math.inf
 		iter_cnt = 0
 
-		while iter_cnt < 0 or rho_divergence_avg > self.density_divergence_threshold:
+		while iter_cnt < self.min_iteration_density_divergence or rho_divergence_avg > self.density_divergence_threshold:
 
 			rho_divergence_avg = self.iter_all_rho_derivative()
 
 			self.iter_all_vel_adv_about_divergence()
 
 			iter_cnt += 1
+
+			print('[divergence iteration] count: {}, error {}'.format(iter_cnt, rho_divergence_avg))
 
 	@ti.kernel
 	def update_velocity(self):
