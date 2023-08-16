@@ -137,14 +137,14 @@ class dfsph_solver(solver_base):
 	@ti.func
 	def compute_rho_derivative(self, i, j):
 		q = self.ps.pos[i] - self.ps.pos[j]
-		return self.ps.particle_m * (self.vel_adv[i] - self.vel_adv[j]).dot(self.cubic_kernel_derivative(q, self.kernel_h))
+		return self.ps.particle_m * (self.ps.vel[i] - self.ps.vel[j]).dot(self.cubic_kernel_derivative(q, self.kernel_h))
 
 	@ti.kernel
 	def divergence_iter_all_vel_adv(self):
 		for i in range(self.particle_count):
 			vel_adv = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.divergence_iter_vel_adv, vel_adv)
-			self.vel_adv[i] -= vel_adv * self.delta_time
+			self.ps.vel[i] -= vel_adv * self.delta_time
 
 	@ti.func
 	def divergence_iter_vel_adv(self, i, j):
