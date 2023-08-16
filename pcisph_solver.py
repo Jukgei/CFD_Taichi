@@ -18,7 +18,7 @@ class pcisph_solver(solver_base):
 		self.min_iteration = 1
 		self.max_iteration = 80
 
-		self.beta = self.delta_time * self.delta_time * self.ps.particle_m * self.ps.particle_m * 2 / (self.rho_0 ** 2)
+		self.beta = self.delta_time[None] * self.delta_time[None] * self.ps.particle_m * self.ps.particle_m * 2 / (self.rho_0 ** 2)
 		self.delta = ti.field(ti.float32, shape=())
 
 		self.pre_compute()
@@ -69,8 +69,8 @@ class pcisph_solver(solver_base):
 	@ti.kernel
 	def predict_vel_pos(self):
 		for i in range(self.particle_count):
-			self.vel_predict[i] = self.ps.vel[i] + self.delta_time * (self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
-			self.pos_predict[i] = self.ps.pos[i] + self.delta_time * self.vel_predict[i]
+			self.vel_predict[i] = self.ps.vel[i] + self.delta_time[None] * (self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
+			self.pos_predict[i] = self.ps.pos[i] + self.delta_time[None] * self.vel_predict[i]
 
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
@@ -138,9 +138,9 @@ class pcisph_solver(solver_base):
 	@ti.kernel
 	def integration(self):
 		for i in range(self.particle_count):
-			self.ps.vel[i] = self.ps.vel[i] + self.delta_time * (
+			self.ps.vel[i] = self.ps.vel[i] + self.delta_time[None] * (
 						self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
-			self.ps.pos[i] = self.ps.pos[i] + self.delta_time * self.ps.vel[i]
+			self.ps.pos[i] = self.ps.pos[i] + self.delta_time[None] * self.ps.vel[i]
 
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):

@@ -64,19 +64,12 @@ if __name__ == "__main__":
 	solver = solver_(ps, config)
 	frame_cnt = 0
 	iter_cnt = solver_config.get('iter_cnt')
-	# for i in range(2000):
-	# 	solver.step()
-	# 	print("Frame: ", i)
-	# a = []
-	# for i in range(ps.particle_num):
-	# 	a.append(ps.vel[i].norm())
-	# 	# print("vel{}, {}".format(i, ps.vel[i]))
-	# print("Max {}, Min {}".format(max(a), min(a)))
+
 	while window.running:
 		# Debug GUI
 		gui = window.get_gui()
 		gui.text("frame_cnt: {}".format(frame_cnt))
-		gui.text("time: {:.4f}".format(frame_cnt * iter_cnt * solver.delta_time))
+		gui.text("time: {:.4f}".format(frame_cnt * iter_cnt * solver.delta_time[None]))
 
 		# Cam and light
 		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)

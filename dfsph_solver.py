@@ -15,7 +15,7 @@ class dfsph_solver(solver_base):
 		self.force_ext = ti.Vector.field(3, ti.float32, shape=self.particle_count)
 		self.force_ext.fill(self.gravity * ti.Vector([0.0, -1.0, 0.0]) * self.ps.particle_m)
 
-		self.delta_time_2 = self.delta_time ** 2
+		self.delta_time_2 = self.delta_time[None] ** 2
 		self.min_iteration_density = 2
 		self.density_threshold = 0.1
 		self.min_iteration_density_divergence = 1
@@ -55,9 +55,9 @@ class dfsph_solver(solver_base):
 	def compute_all_vel_adv(self):
 		max_vel = -ti.math.inf
 		for i in range(self.particle_count):
-			self.vel_adv[i] = self.ps.vel[i] + self.delta_time * self.force_ext[i] / self.ps.particle_m
+			self.vel_adv[i] = self.ps.vel[i] + self.delta_time[None] * self.force_ext[i] / self.ps.particle_m
 			ti.atomic_max(max_vel, self.vel_adv[i].norm())
-		if self.delta_time > 0.4 * self.ps.particle_radius * 2 / max_vel:
+		if self.delta_time[None] > 0.4 * self.ps.particle_radius * 2 / max_vel:
 			print('WARNING! DELTA TIME TOO SMALL. According to CLF condition, delta time must larger than {}'.format(0.4 * self.ps.particle_radius * 2/ max_vel))
 
 	@ti.kernel
@@ -66,8 +66,8 @@ class dfsph_solver(solver_base):
 		for i in range(self.particle_count):
 			delta = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho_adv, delta)
-			self.rho_adv[i] = ti.max(self.rho[i] + self.delta_time * delta, self.rho_0)
-			# self.rho_adv[i] = self.rho[i] + self.delta_time * delta
+			self.rho_adv[i] = ti.max(self.rho[i] + self.delta_time[None] * delta, self.rho_0)
+			# self.rho_adv[i] = self.rho[i] + self.delta_time[None] * delta
 			rho_avg += self.rho_adv[i]
 		return rho_avg / self.particle_count
 
@@ -84,7 +84,7 @@ class dfsph_solver(solver_base):
 			self.ps.for_all_neighbor(i, self.iter_vel_adv, vel_adv)
 			self.vel_adv_delta[i] = vel_adv
 		for i in range(self.particle_count):
-			self.vel_adv[i] -= self.vel_adv_delta[i] * self.delta_time
+			self.vel_adv[i] -= self.vel_adv_delta[i] * self.delta_time[None]
 
 	@ti.func
 	def iter_vel_adv(self, i, j):
@@ -110,7 +110,7 @@ class dfsph_solver(solver_base):
 	@ti.kernel
 	def compute_all_position(self):
 		for i in range(self.particle_count):
-			self.ps.pos[i] = self.ps.pos[i] + self.delta_time * self.vel_adv[i]
+			self.ps.pos[i] = self.ps.pos[i] + self.delta_time[None] * self.vel_adv[i]
 			self.ps.vel[i] = self.vel_adv[i]
 
 		for i in range(self.particle_count):
@@ -144,12 +144,12 @@ class dfsph_solver(solver_base):
 		for i in range(self.particle_count):
 			vel_adv = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.divergence_iter_vel_adv, vel_adv)
-			self.ps.vel[i] -= vel_adv * self.delta_time
+			self.ps.vel[i] -= vel_adv * self.delta_time[None]
 
 	@ti.func
 	def divergence_iter_vel_adv(self, i, j):
-		k_i = self.rho_derivative[i] * self.alpha[i] / self.delta_time
-		k_j = self.rho_derivative[j] * self.alpha[j] / self.delta_time
+		k_i = self.rho_derivative[i] * self.alpha[i] / self.delta_time[None]
+		k_j = self.rho_derivative[j] * self.alpha[j] / self.delta_time[None]
 		q = self.ps.pos[i] - self.ps.pos[j]
 		ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * self.cubic_kernel_derivative(q, self.kernel_h)
 		return ret

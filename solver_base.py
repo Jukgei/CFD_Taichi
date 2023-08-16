@@ -13,7 +13,8 @@ class solver_base:
 		self.particle_count = particle_count
 		self.ps = particle_system
 		self.rho = ti.field(ti.float32, shape=particle_count)
-		self.delta_time = solver_config.get('delta_time')
+		self.delta_time = ti.field(ti.float32, shape=())
+		self.delta_time[None] = solver_config.get('delta_time')
 		self.kernel_h = self.ps.particle_radius * 4
 		self.v_decay_proportion = 0.9
 		self.rho_0 = 1000

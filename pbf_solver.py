@@ -25,8 +25,8 @@ class pbf_solver(solver_base):
 	@ti.kernel
 	def externel_force_predict_pos(self):
 		for i in range(self.particle_count):
-			self.ps.vel[i] += self.delta_time * self.ps.acc[i]
-			self.pos_predict[i] = self.ps.pos[i] + self.delta_time * self.ps.vel[i]
+			self.ps.vel[i] += self.delta_time[None] * self.ps.acc[i]
+			self.pos_predict[i] = self.ps.pos[i] + self.delta_time[None] * self.ps.vel[i]
 
 	@ti.kernel
 	def compute_all_lambda(self):
@@ -54,7 +54,7 @@ class pbf_solver(solver_base):
 	def update_all_pos(self):
 		for i in range(self.particle_count):
 			self.pos_predict[i] += self.delta_pos[i]
-			self.ps.vel[i] = (self.pos_predict[i] - self.ps.pos[i]) / self.delta_time
+			self.ps.vel[i] = (self.pos_predict[i] - self.ps.pos[i]) / self.delta_time[None]
 
 			# for i in range(self.particle_count):
 			for j in ti.static(range(3)):
@@ -66,7 +66,7 @@ class pbf_solver(solver_base):
 					self.pos_predict[i][j] = self.ps.box_max[j] - self.ps.particle_radius
 					self.ps.vel[i][j] *= self.v_decay_proportion
 
-			# self.ps.vel[i] = (self.pos_predict[i] - self.ps.pos[i]) / self.delta_time
+			# self.ps.vel[i] = (self.pos_predict[i] - self.ps.pos[i]) / self.delta_time[None]
 			self.ps.pos[i] = self.pos_predict[i]
 
 			v = ti.Vector([0, 0, 0])

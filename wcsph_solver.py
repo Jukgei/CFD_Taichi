@@ -42,8 +42,8 @@ class wcsph_solver(solver_base):
 			self.ps.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i]
 
 		for i in range(self.particle_count):
-			self.ps.vel[i] += self.ps.acc[i] * self.delta_time
-			self.ps.pos[i] += self.ps.vel[i] * self.delta_time
+			self.ps.vel[i] += self.ps.acc[i] * self.delta_time[None]
+			self.ps.pos[i] += self.ps.vel[i] * self.delta_time[None]
 
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):

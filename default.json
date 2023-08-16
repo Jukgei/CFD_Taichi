@@ -6,7 +6,7 @@
     "gravity": 9.8
   },
   "solver": {
-    "name" : "iisph",
+    "name" : "dfsph",
     "delta_time" : 1e-3,
     "iter_cnt" : 1
   },

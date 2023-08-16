@@ -40,16 +40,16 @@ class iisph_solver(solver_base):
 		# 	rho_avg += self.rho[i]
 		# print("rho avg ", rho_avg / self.particle_count)
 		for i in range(self.particle_count):
-			self.v_adv[i] = self.ps.vel[i] + self.delta_time * self.f_adv[i] / self.ps.particle_m
+			self.v_adv[i] = self.ps.vel[i] + self.delta_time[None] * self.f_adv[i] / self.ps.particle_m
 			d_ii = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.compute_d_ii, d_ii)
-			self.d_ii[i] = d_ii * self.delta_time * self.delta_time
+			self.d_ii[i] = d_ii * self.delta_time[None] * self.delta_time[None]
 
 		for i in range(self.particle_count):
 			rho_adv = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho_adv, rho_adv)
-			# self.rho_adv[i] = ti.max(rho_adv * self.delta_time + self.rho[i], self.rho[i])
-			self.rho_adv[i] = rho_adv * self.delta_time + self.rho[i]
+			# self.rho_adv[i] = ti.max(rho_adv * self.delta_time[None] + self.rho[i], self.rho[i])
+			self.rho_adv[i] = rho_adv * self.delta_time[None] + self.rho[i]
 			self.p_iter[i] = 0.5 * self.p_past[i]
 			a_ii = 0.0
 			self.ps.for_all_neighbor(i, self.compute_a_ii, a_ii)
@@ -101,7 +101,7 @@ class iisph_solver(solver_base):
 		for i in range(self.particle_count):
 			d_ij = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.compute_d_ij, d_ij)
-			self.d_ij[i] = d_ij * self.delta_time * self.delta_time
+			self.d_ij[i] = d_ij * self.delta_time[None] * self.delta_time[None]
 
 	@ti.kernel
 	def update_p(self):
@@ -132,8 +132,8 @@ class iisph_solver(solver_base):
 		self.compute_all_press_force()
 
 		for i in range(self.particle_count):
-			self.ps.vel[i] = self.v_adv[i] + self.delta_time * self.f_press[i] / self.ps.particle_m
-			self.ps.pos[i] = self.ps.pos[i] + self.delta_time * self.ps.vel[i]
+			self.ps.vel[i] = self.v_adv[i] + self.delta_time[None] * self.f_press[i] / self.ps.particle_m
+			self.ps.pos[i] = self.ps.pos[i] + self.delta_time[None] * self.ps.vel[i]
 
 		# self.check_valid()
 		for i in range(self.particle_count):
@@ -162,7 +162,7 @@ class iisph_solver(solver_base):
 		q = self.ps.pos[i] - self.ps.pos[j]
 		w_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		w_ji = self.cubic_kernel_derivative(-q, self.kernel_h)
-		d_ji = - self.delta_time * self.delta_time * self.ps.particle_m / (
+		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
 				self.rho[i] * self.rho[i]) * w_ji * self.p_iter[i]
 		return self.ps.particle_m * (self.d_ij[i] - self.d_ii[j] * self.p_iter[j] - (self.d_ij[j] - d_ji)).dot(w_ij)
 
@@ -176,7 +176,7 @@ class iisph_solver(solver_base):
 		q = self.ps.pos[i] - self.ps.pos[j]
 		cubic_kernel_derivative = self.cubic_kernel_derivative(q, self.kernel_h)
 		# todo  check is rho[i] ? or rho[j]?
-		d_ji = - self.delta_time * self.delta_time * self.ps.particle_m / (
+		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
 				self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(-q, self.kernel_h)
 		return self.ps.particle_m * (self.d_ii[i] - d_ji).dot(cubic_kernel_derivative)
 
