@@ -18,6 +18,7 @@ class solver_base:
 		self.v_decay_proportion = 0.9
 		self.rho_0 = 1000
 		self.gravity = scene_config.get('gravity')
+		self.simulate_cnt = ti.field(ti.int32, shape=())
 
 		print("\033[32m[Solver]: {}\033[0m".format(solver_config.get('name')))
 
@@ -99,6 +100,7 @@ class solver_base:
 		self.ps.acc.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]))
 
 	def step(self):
+		self.simulate_cnt[None] += 1
 
 		self.ps.reset_grid()
 
