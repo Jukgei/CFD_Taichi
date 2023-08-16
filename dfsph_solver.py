@@ -19,6 +19,7 @@ class dfsph_solver(solver_base):
 		self.min_iteration_density = 2
 		self.density_threshold = 0.1
 		self.min_iteration_density_divergence = 1
+		self.max_iteration_density_divergence = 25
 		self.density_divergence_threshold = 1
 
 	@ti.func
@@ -57,6 +58,7 @@ class dfsph_solver(solver_base):
 		for i in range(self.particle_count):
 			self.vel_adv[i] = self.ps.vel[i] + self.delta_time[None] * self.force_ext[i] / self.ps.particle_m
 			ti.atomic_max(max_vel, self.vel_adv[i].norm())
+			# self.delta_time[None] = 0.4 * self.ps.particle_radius * 2 / max_vel * 0.5
 		if self.delta_time[None] > 0.4 * self.ps.particle_radius * 2 / max_vel:
 			print('WARNING! DELTA TIME TOO SMALL. According to CLF condition, delta time must larger than {}'.format(0.4 * self.ps.particle_radius * 2/ max_vel))
 
@@ -105,7 +107,7 @@ class dfsph_solver(solver_base):
 
 			iter_cnt += 1
 
-			print('[density iteration] count: {}, error {}'.format(iter_cnt, rho_avg - self.rho_0))
+		print('[density iteration] count: {}, error {}'.format(iter_cnt, rho_avg - self.rho_0))
 
 	@ti.kernel
 	def compute_all_position(self):
@@ -158,7 +160,7 @@ class dfsph_solver(solver_base):
 		rho_divergence_avg = ti.math.inf
 		iter_cnt = 0
 
-		while iter_cnt < self.min_iteration_density_divergence or rho_divergence_avg > self.density_divergence_threshold:
+		while (iter_cnt < self.min_iteration_density_divergence or rho_divergence_avg > self.density_divergence_threshold) and iter_cnt < self.max_iteration_density_divergence:
 
 			rho_divergence_avg = self.derivative_iter_all_rho()
 
@@ -166,7 +168,7 @@ class dfsph_solver(solver_base):
 
 			iter_cnt += 1
 
-			print('[divergence iteration] count: {}, error {}'.format(iter_cnt, rho_divergence_avg))
+		print('[divergence iteration] count: {}, error {}'.format(iter_cnt, rho_divergence_avg))
 
 	@ti.kernel
 	def initialize(self):
