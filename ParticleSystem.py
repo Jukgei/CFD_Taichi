@@ -12,17 +12,17 @@ class ParticleSystem:
 		self.water_size = ti.Vector(fluid_config.get('water_size'))
 		self.start_pos = ti.Vector(fluid_config.get('start_pos'))
 		self.particle_radius = scene_config.get('particle_radius')
+		self.particle_diameter = self.particle_radius * 2
 		self.support_radius = 4 * self.particle_radius
 		self.particle_m = 1000 * ((self.particle_radius ) ** 3) * 8
 
 		self.particle_num = int(
-			self.water_size.x / self.particle_radius * self.water_size.y / self.particle_radius * self.water_size.z / self.particle_radius)
+			self.water_size.x / self.particle_diameter * self.water_size.y / self.particle_diameter * self.water_size.z / self.particle_diameter)
 
 		self.pos = ti.Vector.field(3, ti.f32, shape=self.particle_num)
 		self.vel = ti.Vector.field(3, ti.f32, shape=self.particle_num)
 		self.acc = ti.Vector.field(3, ti.f32, shape=self.particle_num)
 		self.belong_grid = ti.Vector.field(3, ti.i32, shape=self.particle_num)
-		# self.belong_grid = ti.field(ti.i32, shape=self.particle_count)
 
 		self.box_max = ti.Vector(scene_config.get('box_max'))
 		self.box_min = ti.Vector(scene_config.get('box_min'))
@@ -31,23 +31,21 @@ class ParticleSystem:
 		grid_num_np = np.ceil(((self.box_max - self.box_min) / self.support_radius).to_numpy()).astype(np.int32)
 		self.grid_num = ti.Vector([grid_num_np[0], grid_num_np[1], grid_num_np[2]])
 		self._3d_to_1d_tran = ti.Vector([1, self.grid_num[0] * self.grid_num[2], self.grid_num[0]])
-		self.max_particle_in_grid = 80 		# todo how to cal.
-		# The first element is the count of the particle in this grid
 		S = ti.root.dense(ti.i, self.grid_num[0] * self.grid_num[1] * self.grid_num[2]).dynamic(ti.j, 512,
 																								chunk_size=32)
 		self.grids = ti.field(int)
 		S.place(self.grids)
 		self.init_particle()
 
-		print('particle count: ', self.particle_num)
-		print('particle m: ', self.particle_m)
-		print('Grid num: ', self.grid_num, self.grid_num[0]* self.grid_num[1]* self.grid_num[2])
+		print('Particle count: {}k'.format(self.particle_num/1000))
+		print('Particle mass: {}'.format(self.particle_m))
+		print('Grid: {}, Grid count: {}'.format( self.grid_num, self.grid_num[0]* self.grid_num[1]* self.grid_num[2]))
 
 	@ti.kernel
 	def init_particle(self):
 		for i in range(self.particle_num):
-			x_num = self.water_size.x / self.particle_radius
-			z_num = self.water_size.z / self.particle_radius
+			x_num = self.water_size.x / self.particle_diameter
+			z_num = self.water_size.z / self.particle_diameter
 			xz_num = x_num * z_num
 
 			x = i % x_num
@@ -57,16 +55,10 @@ class ParticleSystem:
 
 	@ti.kernel
 	def reset_grid(self):
-		# pass
-		# cnt = 0
 		for I in ti.grouped(ti.ndrange(self.grid_num[0], self.grid_num[1], self.grid_num[2])):
 			_1d_index = self.get_particle_grid_index_1d(I)
 			if self.grids[_1d_index].length() != 0:
 				self.grids[_1d_index].deactivate()
-		# 	if self.grids[I, 0] != 0:
-		# 		self.grids[I, 0] = 0
-		# 		cnt +=1
-		# print('active grid count: ', cnt)
 
 	# @ti.kernel
 	def test(self):
@@ -146,7 +138,6 @@ class ParticleSystem:
 			print("Fail!")
 		else:
 			print('Check pass!')
-		# print('sum is ', sum)
 
 	@ti.func
 	def get_particle_grid_index_1d(self, _3d_index):
@@ -156,6 +147,3 @@ class ParticleSystem:
 		if (ti.floor(pos / self.support_radius, ti.i32)>= self.grid_num).any():
 			print(pos, pos / self.support_radius, ti.floor(pos / self.support_radius, ti.i32)>= self.grid_num)
 		return ti.floor(pos / self.support_radius, ti.i32)
-		# print(pos)
-		# print(ti.floor(pos/ self.support_radius, ti.i32 ))
-		# print('----')
