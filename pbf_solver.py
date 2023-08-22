@@ -14,11 +14,11 @@ class pbf_solver(solver_base):
 		self.delta_pos = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 		self.constrain_derivative = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 		self.pbf_lambda = ti.field(ti.float32, shape=particle_count)
-		self.epsilon = 1e8
+		self.epsilon = 1.0e-6
 
-		self.k = 1e-9 	# tension
-		self.c = 5e-8 	# viscosity
-		self.s_corr_factor = 0.1
+		self.k = 1e-6 	# tension
+		self.c = 5e-6 	# viscosity
+		self.s_corr_factor = 0.3
 
 
 
@@ -35,12 +35,15 @@ class pbf_solver(solver_base):
 		self.compute_all_constrain_derivative()
 
 		for i in range(self.particle_count):
-			sum = 0.0
+			if self.constrain[i] == 0.0:
+				self.pbf_lambda[i] = 0.0
+			else:
+				sum = 0.0
 
-			self.ps.for_all_neighbor(i, self.compute_derivative_around_sum, sum)
-			sum = self.constrain_derivative[i].dot(self.constrain_derivative[i]) + sum
+				self.ps.for_all_neighbor(i, self.compute_derivative_around_sum, sum)
+				sum = self.constrain_derivative[i].dot(self.constrain_derivative[i]) + sum
 
-			self.pbf_lambda[i] = - self.constrain[i] / (sum + self.epsilon)
+				self.pbf_lambda[i] = - self.constrain[i] / (sum + self.epsilon)
 
 
 	@ti.kernel
@@ -69,7 +72,8 @@ class pbf_solver(solver_base):
 			# self.ps.vel[i] = (self.pos_predict[i] - self.ps.pos[i]) / self.delta_time[None]
 			self.ps.pos[i] = self.pos_predict[i]
 
-			v = ti.Vector([0, 0, 0])
+
+			v = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.update_vel, v)
 			self.ps.vel[i] += self.c * v
 
@@ -91,7 +95,7 @@ class pbf_solver(solver_base):
 	@ti.func
 	def compute_all_constrain(self):
 		for i in range(self.particle_count):
-			self.constrain[i] = self.rho[i] / self.rho_0 - 1
+			self.constrain[i] = ti.max(self.rho[i] / self.rho_0 - 1.0, 0.0)
 
 	@ti.func
 	def compute_derivative_around_sum(self, i, j):
