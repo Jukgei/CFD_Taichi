@@ -5,6 +5,7 @@ import logging
 import argparse
 import importlib
 import utils
+import numpy as np
 from ParticleSystem import ParticleSystem
 
 parser = argparse.ArgumentParser(description='SPH in Taichi')
@@ -65,6 +66,13 @@ if __name__ == "__main__":
 	frame_cnt = 0
 	iter_cnt = solver_config.get('iter_cnt')
 
+	video_manager = ti.tools.VideoManager(output_dir="./output", framerate=24, automatic_build=False)
+
+	np_rgba = np.reshape(ps.rgba.to_numpy(), (ps.particle_num, 4))
+	series_prefix = './output/output'
+	is_output_gif = scene_config.get('is_output_gif', False)
+	is_output_ply = scene_config.get('is_output_ply', False)
+
 	while window.running:
 		# Debug GUI
 		gui = window.get_gui()
@@ -88,5 +96,22 @@ if __name__ == "__main__":
 		scene.lines(box_vert, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=2.0)
 
 		canvas.scene(scene)
-		window.show()
+
+		# gui.show(f'frame/{frame_cnt:06d}.png')
 		frame_cnt += 1
+		if is_output_gif:
+			img = window.get_image_buffer_as_numpy()
+			video_manager.write_frame(img)
+
+		if is_output_ply:
+			np_pos = np.reshape(ps.pos.to_numpy(), (ps.particle_num, 3))
+			writer = ti.tools.PLYWriter(num_vertices=ps.particle_num)
+			writer.add_vertex_pos(np_pos[:, 0], np_pos[:, 1], np_pos[:, 2])
+			writer.add_vertex_rgba(
+				np_rgba[:, 0], np_rgba[:, 1], np_rgba[:, 2], np_rgba[:, 3])
+			writer.export_frame_ascii(frame_cnt, series_prefix)
+		# print(frame_cnt)
+		window.show()
+
+	if is_output_gif:
+		video_manager.make_video(gif=True, mp4=False)

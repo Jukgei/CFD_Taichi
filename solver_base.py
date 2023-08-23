@@ -1,7 +1,6 @@
 import taichi as ti
 
 
-
 @ti.data_oriented
 class solver_base:
 
@@ -117,7 +116,6 @@ class solver_base:
 			if ti.math.isnan(self.ps.pos[i]).any() or ti.math.isinf(self.ps.pos[i]).any():
 				print("Position {} invalid, {}".format(i, self.ps.pos[i]))
 				is_false = 1
-
 
 			if ti.math.isnan(self.ps.vel[i]).any() or ti.math.isinf(self.ps.vel[i]).any():
 				print("Velocity {} invalid, {}".format(i, self.ps.vel[i]))

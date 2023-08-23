@@ -35,6 +35,10 @@ class ParticleSystem:
 																								chunk_size=32)
 		self.grids = ti.field(int)
 		S.place(self.grids)
+
+		# Output
+		self.rgba = ti.Vector.field(4, dtype=ti.f32, shape=self.particle_num)
+
 		self.init_particle()
 
 		print('Particle count: {}k'.format(self.particle_num/1000))
@@ -52,6 +56,8 @@ class ParticleSystem:
 			z = ti.floor(i / x_num) % z_num
 			y = int(i / xz_num)
 			self.pos[i] = ti.Vector([x, y, z]) * self.particle_radius * 2 + self.start_pos
+
+		self.rgba.fill(ti.Vector([0.0, 0.26, 0.68, 1.0]))
 
 	@ti.kernel
 	def reset_grid(self):
