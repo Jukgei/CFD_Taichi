@@ -39,6 +39,10 @@ class iisph_solver(solver_base):
 		# for i in range(self.particle_count):
 		# 	rho_avg += self.rho[i]
 		# print("rho avg ", rho_avg / self.particle_count)
+		self.solve_all_tension()
+		self.solve_all_viscosity()
+		for i in range(self.particle_count):
+			self.f_adv[i] = self.gravity * ti.Vector([0, -1, 0]) + self.tension[i] + self.viscosity[i]
 		for i in range(self.particle_count):
 			self.v_adv[i] = self.ps.vel[i] + self.delta_time[None] * self.f_adv[i] / self.ps.particle_m
 			d_ii = ti.Vector([0.0, 0.0, 0.0])

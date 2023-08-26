@@ -21,7 +21,7 @@ class solver_base:
 		self.simulate_cnt = ti.field(ti.int32, shape=())
 
 		self.viscosity_epsilon = 0.01
-		self.viscosity_c_s = 5  # TODO 31
+		self.viscosity_c_s = 5
 		self.viscosity_alpha = 0.08
 		self.tension_k = 0.5
 
