@@ -21,6 +21,7 @@ class dfsph_solver(solver_base):
 		self.min_iteration_density_divergence = 1
 		self.max_iteration_density_divergence = 25
 		self.density_divergence_threshold = 1
+		self.tension_k = 5
 
 	@ti.func
 	def compute_all_alpha(self):
@@ -49,8 +50,10 @@ class dfsph_solver(solver_base):
 
 	@ti.kernel
 	def compute_all_ext_force(self):
-		# TODO: viscosity and surface tension
-		pass
+		self.solve_all_tension()
+		self.solve_all_viscosity()
+		for i in range(self.particle_count):
+			self.force_ext[i] = self.gravity * ti.Vector([0, -1, 0]) + self.tension[i] + self.viscosity[i]
 
 	@ti.kernel
 	def compute_all_vel_adv(self):
