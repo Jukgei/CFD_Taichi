@@ -20,6 +20,14 @@ class solver_base:
 		self.gravity = scene_config.get('gravity')
 		self.simulate_cnt = ti.field(ti.int32, shape=())
 
+		self.viscosity_epsilon = 0.01
+		self.viscosity_c_s = 5  # TODO 31
+		self.viscosity_alpha = 0.08
+		self.tension_k = 0.5
+
+		self.viscosity = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
+		self.tension = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
+
 		print("\033[32m[Solver]: {}\033[0m".format(solver_config.get('name')))
 
 	@ti.func
@@ -132,3 +140,36 @@ class solver_base:
 	@ti.func
 	def print_debug_info(self, i):
 		print(self.rho[i])
+
+	@ti.func
+	def solve_all_viscosity(self):
+		for i in range(self.particle_count):
+			viscousity = ti.Vector([0.0, 0.0, 0.0])
+			self.ps.for_all_neighbor(i, self.compute_viscousity, viscousity)
+			self.viscosity[i] = viscousity * self.ps.particle_m
+
+	@ti.func
+	def compute_viscousity(self, i, j) -> ti.types.vector:
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		v_ij = self.ps.vel[i] - self.ps.vel[j]
+		x_ij = self.ps.pos[i] - self.ps.pos[j]
+		shear = v_ij @ x_ij
+		if shear < 0:
+			q = x_ij.norm()
+			q2 = q * q
+			nu = (2 * self.viscosity_alpha * self.kernel_h * self.viscosity_c_s) / (self.rho[i] + self.rho[j])
+			pi = -nu * shear / (q2 + self.viscosity_epsilon * self.kernel_h * self.kernel_h)
+			ret += - self.ps.particle_m * pi * self.cubic_kernel_derivative(x_ij, self.kernel_h)
+		return ret
+
+	@ti.func
+	def solve_all_tension(self):
+		for i in range(self.particle_count):
+			tension = ti.Vector([0.0, 0.0, 0.0])
+			self.ps.for_all_neighbor(i, self.compute_tension, tension)
+			self.tension[i] = tension * self.ps.particle_m
+
+	@ti.func
+	def compute_tension(self, i, j) -> ti.math.vec3:
+		q = self.ps.pos[i] - self.ps.pos[j]
+		return - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(), self.kernel_h) * q

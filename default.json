@@ -8,8 +8,8 @@
     "is_output_ply": false
   },
   "solver": {
-    "name" : "pbf",
-    "delta_time" : 1e-3,
+    "name" : "pcisph",
+    "delta_time" : 2.5e-4,
     "iter_cnt" : 1
   },
   "fluid" : {

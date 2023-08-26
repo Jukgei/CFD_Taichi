@@ -22,8 +22,6 @@ class pcisph_solver(solver_base):
 		self.beta = self.delta_time[None] * self.delta_time[None] * self.ps.particle_m * self.ps.particle_m * 2 / (self.rho_0 ** 2)
 		self.delta = ti.field(ti.float32, shape=())
 
-		self.tension_k = 0.1
-
 		self.pre_compute()
 
 	def pre_compute(self):
@@ -159,27 +157,16 @@ class pcisph_solver(solver_base):
 	@ti.kernel
 	def compute_ext_force(self):
 		# todo: add surface tension and viscosity
+		self.compute_all_rho()
 		self.solve_all_tension()
+		self.solve_all_viscosity()
 		for i in range(self.particle_count):
-			self.ext_force[i] = self.gravity * ti.Vector([0, -1, 0]) + self.tension[i]
-		# pass
+			self.ext_force[i] = self.gravity * ti.Vector([0, -1, 0]) + self.tension[i] + self.viscosity[i]
 
 	@ti.kernel
 	def reset(self):
 		self.press_iter.fill(0)
 		self.press_force.fill(ti.Vector([0.0, 0.0, 0.0]))
-
-	@ti.func
-	def solve_all_tension(self):
-		for i in range(self.particle_count):
-			tension = ti.Vector([0.0, 0.0, 0.0])
-			self.ps.for_all_neighbor(i, self.compute_tension, tension)
-			self.tension[i] = tension * self.ps.particle_m
-
-	@ti.func
-	def compute_tension(self, i, j) -> ti.math.vec3:
-		q = self.ps.pos[i] - self.ps.pos[j]
-		return - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(), self.kernel_h) * q
 
 	def step(self):
 		super(pcisph_solver, self).step()

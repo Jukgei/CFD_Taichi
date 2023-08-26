@@ -16,7 +16,7 @@ class wcsph_solver(solver_base):
 		self.viscosity_epsilon = 0.01
 		self.viscosity_c_s = 5 #TODO 31
 		self.viscosity_alpha = 0.08
-		self.tension_k = 0.1
+		self.tension_k = 0.2
 		self.gamma = 7
 		self.B = 70000 #TODO ((math.sqrt(2 * 9.8 * 0.25) / 0.1) ** 2 ) * 1000 / 7
 
