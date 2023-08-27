@@ -144,12 +144,12 @@ class solver_base:
 	@ti.func
 	def solve_all_viscosity(self):
 		for i in range(self.particle_count):
-			viscousity = ti.Vector([0.0, 0.0, 0.0])
-			self.ps.for_all_neighbor(i, self.compute_viscousity, viscousity)
-			self.viscosity[i] = viscousity * self.ps.particle_m
+			viscosity = ti.Vector([0.0, 0.0, 0.0])
+			self.ps.for_all_neighbor(i, self.compute_viscosity, viscosity)
+			self.viscosity[i] = viscosity * self.ps.particle_m
 
 	@ti.func
-	def compute_viscousity(self, i, j) -> ti.types.vector:
+	def compute_viscosity(self, i, j) -> ti.types.vector:
 		ret = ti.Vector([0.0, 0.0, 0.0])
 		v_ij = self.ps.vel[i] - self.ps.vel[j]
 		x_ij = self.ps.pos[i] - self.ps.pos[j]
@@ -173,3 +173,31 @@ class solver_base:
 	def compute_tension(self, i, j) -> ti.math.vec3:
 		q = self.ps.pos[i] - self.ps.pos[j]
 		return - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(), self.kernel_h) * q
+
+	@ti.kernel
+	def visualize_rho(self):
+		max_rho = - ti.math.inf
+		min_rho = ti.math.inf
+		for i in range(self.particle_count):
+			ti.atomic_max(max_rho, self.rho[i])
+			ti.atomic_min(min_rho, self.rho[i])
+		# print('max rho {}, min rho {}'.format(max_rho, min_rho))
+
+		for i in range(self.particle_count):
+			if max_rho - min_rho > 0:
+				b = (self.rho[i] - min_rho)/(max_rho - min_rho)
+				self.ps.rgb[i] = ti.Vector([0.0, 0.28, b])
+
+	@ti.kernel
+	def visualize_neighbour(self):
+		max_neighbour = - ti.math.inf
+		min_neighbour = ti.math.inf
+		for i in range(self.particle_count):
+			neighbour = self.ps.get_neighbour_count(i)
+			ti.atomic_max(max_neighbour, neighbour)
+			ti.atomic_min(min_neighbour, neighbour)
+
+		for i in range(self.particle_count):
+			neighbour = self.ps.get_neighbour_count(i)
+			if max_neighbour - min_neighbour > 0:
+				self.ps.rgb[i] = ti.Vector([0.0, 0.28, (neighbour - min_neighbour) / (max_neighbour - min_neighbour)])

@@ -39,6 +39,10 @@ class ParticleSystem:
 		# Output
 		self.rgba = ti.Vector.field(4, dtype=ti.f32, shape=self.particle_num)
 
+		# Visualization
+		self.rgb = ti.Vector.field(3, ti.f32, shape=self.particle_num)
+		self.rgb.fill(ti.Vector([0.0, 0.28, 1.0]))
+
 		self.init_particle()
 
 		print('Particle count: {}k'.format(self.particle_num/1000))
@@ -88,22 +92,7 @@ class ParticleSystem:
 		max_count = -1
 		max_index = -1
 		for i in range(self.particle_num):
-			neighbor_cnt = 0
-			center = self.get_particle_grid_index_3d(self.pos[i])
-			for I in ti.grouped(ti.ndrange((-1, 2), (-1, 2), (-1, 2))):
-				if (I + center >= self.grid_num).any():
-					continue
-				if not (I + center >= 0).all():
-					continue
-				_1d_index = self.get_particle_grid_index_1d(I + center)
-				count = self.grids[_1d_index].length()
-				for index in range(count):
-					particle_j = self.grids[_1d_index, index]
-					if particle_j == i:
-						continue
-					if (self.pos[i] - self.pos[particle_j]).norm() > self.support_radius:
-						continue
-					neighbor_cnt += 1
+			neighbor_cnt = self.get_neighbour_count(i)
 			# grid_index_1d = self.get_particle_grid_index_1d(grid_index_3d)
 			# count = self.grids[grid_index_1d].length()
 			new_max = ti.atomic_max(max_count, neighbor_cnt)
@@ -111,6 +100,27 @@ class ParticleSystem:
 				max_index = i
 		print('max_index is {}, length is {}'.format(max_index, max_count))
 		return max_index
+
+	@ti.func
+	def get_neighbour_count(self, i):
+		neighbor_cnt = 0
+		center = self.get_particle_grid_index_3d(self.pos[i])
+		for I in ti.grouped(ti.ndrange((-1, 2), (-1, 2), (-1, 2))):
+			if (I + center >= self.grid_num).any():
+				continue
+			if not (I + center >= 0).all():
+				continue
+			_1d_index = self.get_particle_grid_index_1d(I + center)
+			count = self.grids[_1d_index].length()
+			for index in range(count):
+				particle_j = self.grids[_1d_index, index]
+				if particle_j == i:
+					continue
+				if (self.pos[i] - self.pos[particle_j]).norm() > self.support_radius:
+					continue
+				neighbor_cnt += 1
+		return neighbor_cnt
+
 
 	@ti.func
 	def for_all_neighbor(self, i, task: ti.template(), ret: ti.template()):
@@ -148,6 +158,7 @@ class ParticleSystem:
 	@ti.func
 	def get_particle_grid_index_1d(self, _3d_index):
 		return _3d_index.dot(self._3d_to_1d_tran)
+
 	@ti.func
 	def get_particle_grid_index_3d(self, pos) -> ti.types.vector:
 		if (ti.floor(pos / self.support_radius, ti.i32)>= self.grid_num).any():

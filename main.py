@@ -72,23 +72,29 @@ if __name__ == "__main__":
 	series_prefix = './output/output'
 	is_output_gif = scene_config.get('is_output_gif', False)
 	is_output_ply = scene_config.get('is_output_ply', False)
-
+	is_pause = False
 	while window.running:
 		# Debug GUI
 		gui = window.get_gui()
 		gui.text("frame_cnt: {}".format(frame_cnt))
 		gui.text("time: {:.4f}".format(frame_cnt * iter_cnt * solver.delta_time[None]))
+		gui.text("Pause: {}".format(is_pause))
+		if window.is_pressed(ti.GUI.SPACE):
+			is_pause = not is_pause
 
 		# Cam and light
 		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
 		scene.set_camera(camera)
 		scene.ambient_light((0.8, 0.8, 0.8))
 		scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
+		# if not is_pause:
+		# 	solver.visualize_rho()
+		scene.particles(ps.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.rgb)
 
-		scene.particles(ps.pos, color=(0.0, 0.26, 0.68), radius=ps.particle_radius)
-
-		for i in range(iter_cnt):
-			solver.step()
+		if not is_pause:
+			for i in range(iter_cnt):
+				solver.step()
+			# is_pause = True
 			# ti.profiler.print_kernel_profiler_info()
 			# ti.profiler.clear_kernel_profiler_info()
 		# ti.profiler.print_kernel_profiler_info()
