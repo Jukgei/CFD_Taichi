@@ -89,7 +89,8 @@ if __name__ == "__main__":
 		scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
 		# if not is_pause:
 		# 	solver.visualize_rho()
-		scene.particles(ps.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.rgb)
+		scene.particles(ps.fluid_particles.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.rgb)
+		# scene.particles(ps.boundary_particles.pos, color=(1.0, 1.0, 1.0), radius=ps.particle_radius)
 
 		if not is_pause:
 			for i in range(iter_cnt):
@@ -110,7 +111,7 @@ if __name__ == "__main__":
 			video_manager.write_frame(img)
 
 		if is_output_ply:
-			np_pos = np.reshape(ps.pos.to_numpy(), (ps.particle_num, 3))
+			np_pos = np.reshape(ps.fluid_particles.pos.to_numpy(), (ps.particle_num, 3))
 			writer = ti.tools.PLYWriter(num_vertices=ps.particle_num)
 			writer.add_vertex_pos(np_pos[:, 0], np_pos[:, 1], np_pos[:, 2])
 			writer.add_vertex_rgba(

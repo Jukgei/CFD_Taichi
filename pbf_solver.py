@@ -25,8 +25,8 @@ class pbf_solver(solver_base):
 	@ti.kernel
 	def externel_force_predict_pos(self):
 		for i in range(self.particle_count):
-			self.ps.vel[i] += self.delta_time[None] * self.ps.acc[i]
-			self.pos_predict[i] = self.ps.pos[i] + self.delta_time[None] * self.ps.vel[i]
+			self.ps.fluid_particles.vel[i] += self.delta_time[None] * self.ps.fluid_particles.acc[i]
+			self.pos_predict[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.ps.fluid_particles.vel[i]
 
 	@ti.kernel
 	def compute_all_lambda(self):
@@ -57,29 +57,29 @@ class pbf_solver(solver_base):
 	def update_all_pos(self):
 		for i in range(self.particle_count):
 			self.pos_predict[i] += self.delta_pos[i]
-			self.ps.vel[i] = (self.pos_predict[i] - self.ps.pos[i]) / self.delta_time[None]
+			self.ps.fluid_particles.vel[i] = (self.pos_predict[i] - self.ps.fluid_particles.pos[i]) / self.delta_time[None]
 
 			# for i in range(self.particle_count):
 			for j in ti.static(range(3)):
 				if self.pos_predict[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
 					self.pos_predict[i][j] = self.ps.box_min[j] + self.ps.particle_radius
-					self.ps.vel[i][j] *= self.v_decay_proportion
+					self.ps.fluid_particles.vel[i][j] *= self.v_decay_proportion
 
 				if self.pos_predict[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
 					self.pos_predict[i][j] = self.ps.box_max[j] - self.ps.particle_radius
-					self.ps.vel[i][j] *= self.v_decay_proportion
+					self.ps.fluid_particles.vel[i][j] *= self.v_decay_proportion
 
-			# self.ps.vel[i] = (self.pos_predict[i] - self.ps.pos[i]) / self.delta_time[None]
-			self.ps.pos[i] = self.pos_predict[i]
+			# self.ps.fluid_particles.vel[i] = (self.pos_predict[i] - self.ps.fluid_particles.pos[i]) / self.delta_time[None]
+			self.ps.fluid_particles.pos[i] = self.pos_predict[i]
 
 
 			v = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.update_vel, v)
-			self.ps.vel[i] += self.c * v
+			self.ps.fluid_particles.vel[i] += self.c * v
 
 	@ti.func
 	def update_vel(self, i, j):
-		return (self.ps.vel[j] - self.ps.vel[i] ) * self.poly_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), self.kernel_h)
+		return (self.ps.fluid_particles.vel[j] - self.ps.fluid_particles.vel[i] ) * self.poly_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
 
 	@ti.func
 	def compute_all_constrain_derivative(self):
@@ -90,7 +90,7 @@ class pbf_solver(solver_base):
 
 	@ti.func
 	def compute_constrain_derivative(self, i, j) -> ti.types.vector:
-		return self.spiky_kernel_derivative(self.ps.pos[i] - self.ps.pos[j], self.kernel_h) / self.rho_0
+		return self.spiky_kernel_derivative(self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j], self.kernel_h) / self.rho_0
 
 	@ti.func
 	def compute_all_constrain(self):
@@ -100,12 +100,12 @@ class pbf_solver(solver_base):
 	@ti.func
 	def compute_derivative_around_sum(self, i, j):
 
-		ret = self.spiky_kernel_derivative(self.ps.pos[i] - self.ps.pos[j], self.kernel_h) / self.rho_0
+		ret = self.spiky_kernel_derivative(self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j], self.kernel_h) / self.rho_0
 		return ret.dot(ret)
 
 	@ti.func
 	def compute_delta_pos(self, i, j) -> ti.types.vector:
-		x_ij = self.ps.pos[i] - self.ps.pos[j]
+		x_ij = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		x_ij_norm = x_ij.norm()
 		s_corr = self.poly_kernel(x_ij_norm, self.kernel_h) / self.poly_kernel(self.s_corr_factor * self.kernel_h, self.kernel_h)
 		s_corr *= s_corr
@@ -116,7 +116,7 @@ class pbf_solver(solver_base):
 
 	@ti.func
 	def compute_rho(self, i, j):
-		return self.ps.particle_m * self.poly_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), self.kernel_h)
+		return self.ps.particle_m * self.poly_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
 
 	def step(self):
 

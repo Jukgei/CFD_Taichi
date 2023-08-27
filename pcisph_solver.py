@@ -70,8 +70,8 @@ class pcisph_solver(solver_base):
 	@ti.kernel
 	def predict_vel_pos(self):
 		for i in range(self.particle_count):
-			self.vel_predict[i] = self.ps.vel[i] + self.delta_time[None] * (self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
-			self.pos_predict[i] = self.ps.pos[i] + self.delta_time[None] * self.vel_predict[i]
+			self.vel_predict[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * (self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
+			self.pos_predict[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.vel_predict[i]
 
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
@@ -119,39 +119,39 @@ class pcisph_solver(solver_base):
 
 	@ti.func
 	def compute_sum(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		return dw_ij
 
 	@ti.func
 	def compute_square_sum(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		dw_ij_2 = dw_ij.dot(dw_ij)
 		return dw_ij_2
 
 	@ti.func
 	def compute_press_force(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		return (self.press_iter[i] + self.press_iter[j]) * dw_ij / (self.rho_0 ** 2)
 
 	@ti.kernel
 	def integration(self):
 		for i in range(self.particle_count):
-			self.ps.vel[i] = self.ps.vel[i] + self.delta_time[None] * (
+			self.ps.fluid_particles.vel[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * (
 						self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
-			self.ps.pos[i] = self.ps.pos[i] + self.delta_time[None] * self.ps.vel[i]
+			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.ps.fluid_particles.vel[i]
 
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
-				if self.ps.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
-					self.ps.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
-					self.ps.vel[i][j] *= -self.v_decay_proportion
+				if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
+					self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
+					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
-				if self.ps.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
-					self.ps.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
-					self.ps.vel[i][j] *= -self.v_decay_proportion
+				if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
+					self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
+					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 		self.check_valid()
 
 	@ti.kernel

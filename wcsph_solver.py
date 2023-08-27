@@ -39,28 +39,28 @@ class wcsph_solver(solver_base):
 	@ti.kernel
 	def kinematic_phase(self):
 		for i in range(self.particle_count):
-			self.ps.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i]
+			self.ps.fluid_particles.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i]
 
 		for i in range(self.particle_count):
-			self.ps.vel[i] += self.ps.acc[i] * self.delta_time[None]
-			self.ps.pos[i] += self.ps.vel[i] * self.delta_time[None]
+			self.ps.fluid_particles.vel[i] += self.ps.fluid_particles.acc[i] * self.delta_time[None]
+			self.ps.fluid_particles.pos[i] += self.ps.fluid_particles.vel[i] * self.delta_time[None]
 
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
-				if self.ps.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
-					self.ps.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
-					self.ps.vel[i][j] *= -self.v_decay_proportion
+				if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
+					self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
+					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
-				if self.ps.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
-					self.ps.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
-					self.ps.vel[i][j] *= -self.v_decay_proportion
+				if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
+					self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
+					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
 	@ti.func
 	def solve_rho(self, i):
 		rho = 0.001
 		for j in range(self.particle_count):
 			if j != i:
-				rho += self.ps.particle_m * self.cubic_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), self.kernel_h)
+				rho += self.ps.particle_m * self.cubic_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
 		return rho
 
 
@@ -98,7 +98,7 @@ class wcsph_solver(solver_base):
 
 	@ti.func
 	def compute_tension(self, i, j) -> ti.math.vec3:
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		return - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(), self.kernel_h) * q
 
 	@ti.func
@@ -117,15 +117,15 @@ class wcsph_solver(solver_base):
 
 		p_j = self.pressure[j]
 		rho_j = self.rho[j]
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		ret += self.ps.particle_m * (p_i / (rho_i_2) + p_j / (rho_j ** 2)) * self.cubic_kernel_derivative(q, self.kernel_h)# * dir / (dir.norm() * self.kernel_h)
 		return ret
 
 	@ti.func
 	def compute_viscousity(self, i, j) -> ti.types.vector:
 		ret = ti.Vector([0.0, 0.0, 0.0])
-		v_ij = self.ps.vel[i] - self.ps.vel[j]
-		x_ij = self.ps.pos[i] - self.ps.pos[j]
+		v_ij = self.ps.fluid_particles.vel[i] - self.ps.fluid_particles.vel[j]
+		x_ij = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		shear = v_ij @ x_ij
 		if shear < 0:
 			q = x_ij.norm()
@@ -146,6 +146,6 @@ class wcsph_solver(solver_base):
 				# if True:
 				p_j = self.pressure[j]
 				rho_j = self.rho[j]
-				q = self.ps.pos[i] - self.ps.pos[j]
+				q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 				sum += self.ps.particle_m * (p_i / (rho_i_2) + p_j / (rho_j ** 2)) * self.cubic_kernel_derivative(q, self.kernel_h)
 		return sum

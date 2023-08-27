@@ -44,7 +44,7 @@ class iisph_solver(solver_base):
 		for i in range(self.particle_count):
 			self.f_adv[i] = self.gravity * ti.Vector([0, -1, 0]) + self.tension[i] + self.viscosity[i]
 		for i in range(self.particle_count):
-			self.v_adv[i] = self.ps.vel[i] + self.delta_time[None] * self.f_adv[i] / self.ps.particle_m
+			self.v_adv[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * self.f_adv[i] / self.ps.particle_m
 			d_ii = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.compute_d_ii, d_ii)
 			self.d_ii[i] = d_ii * self.delta_time[None] * self.delta_time[None]
@@ -95,7 +95,7 @@ class iisph_solver(solver_base):
 
 	@ti.func
 	def compute_rho_iter(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		# todo dot?
 		return self.ps.particle_m * (self.f_press[i] / self.ps.particle_m - self.f_press[j] / self.ps.particle_m).dot(
 			self.cubic_kernel_derivative(q, self.kernel_h))
@@ -136,26 +136,26 @@ class iisph_solver(solver_base):
 		self.compute_all_press_force()
 
 		for i in range(self.particle_count):
-			self.ps.vel[i] = self.v_adv[i] + self.delta_time[None] * self.f_press[i] / self.ps.particle_m
-			self.ps.pos[i] = self.ps.pos[i] + self.delta_time[None] * self.ps.vel[i]
+			self.ps.fluid_particles.vel[i] = self.v_adv[i] + self.delta_time[None] * self.f_press[i] / self.ps.particle_m
+			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.ps.fluid_particles.vel[i]
 
 		# self.check_valid()
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
-				if self.ps.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
-					self.ps.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
-					self.ps.vel[i][j] *= -self.v_decay_proportion
+				if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
+					self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
+					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
-				if self.ps.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
-					self.ps.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
-					self.ps.vel[i][j] *= -self.v_decay_proportion
+				if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
+					self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
+					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
 		for i in range(self.particle_count):
 			self.p_past[i] = self.p_iter[i]
 
 	@ti.func
 	def compute_press_force(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 
 		return self.ps.particle_m * (self.p_iter[i] / ti.pow(self.rho[i], 2) + self.p_iter[j] / ti.pow(self.rho[j],
 																									   2)) * self.cubic_kernel_derivative(
@@ -163,7 +163,7 @@ class iisph_solver(solver_base):
 
 	@ti.func
 	def sum_factor(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		w_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		w_ji = self.cubic_kernel_derivative(-q, self.kernel_h)
 		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
@@ -172,12 +172,12 @@ class iisph_solver(solver_base):
 
 	@ti.func
 	def compute_d_ii(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		return - self.ps.particle_m / (self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(q, self.kernel_h)
 
 	@ti.func
 	def compute_a_ii(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		cubic_kernel_derivative = self.cubic_kernel_derivative(q, self.kernel_h)
 		# todo  check is rho[i] ? or rho[j]?
 		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
@@ -186,14 +186,14 @@ class iisph_solver(solver_base):
 
 	@ti.func
 	def compute_d_ij(self, i, j):
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		w_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		return - self.ps.particle_m * self.p_iter[j] * w_ij / (self.rho[j] * self.rho[j])
 
 	@ti.func
 	def compute_rho_adv(self, i, j):
 		v_ij = self.v_adv[i] - self.v_adv[j]
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		return self.ps.particle_m * v_ij.dot(self.cubic_kernel_derivative(q, self.kernel_h))
 
 	def step(self):

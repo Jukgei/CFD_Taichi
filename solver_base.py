@@ -45,7 +45,7 @@ class solver_base:
 
 	@ti.func
 	def compute_rho(self, i, j):
-		return self.ps.particle_m * self.cubic_kernel((self.ps.pos[i] - self.ps.pos[j]).norm(), self.kernel_h)
+		return self.ps.particle_m * self.cubic_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
 
 	@ti.func
 	def cubic_kernel(self, r, h):
@@ -105,7 +105,7 @@ class solver_base:
 
 	@ti.kernel
 	def reset(self):
-		self.ps.acc.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]))
+		self.ps.fluid_particles.acc.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]))
 
 	def step(self):
 		self.simulate_cnt[None] += 1
@@ -121,16 +121,16 @@ class solver_base:
 		for i in range(self.particle_count):
 
 			is_false = 0
-			if ti.math.isnan(self.ps.pos[i]).any() or ti.math.isinf(self.ps.pos[i]).any():
-				print("Position {} invalid, {}".format(i, self.ps.pos[i]))
+			if ti.math.isnan(self.ps.fluid_particles.pos[i]).any() or ti.math.isinf(self.ps.fluid_particles.pos[i]).any():
+				print("Position {} invalid, {}".format(i, self.ps.fluid_particles.pos[i]))
 				is_false = 1
 
-			if ti.math.isnan(self.ps.vel[i]).any() or ti.math.isinf(self.ps.vel[i]).any():
-				print("Velocity {} invalid, {}".format(i, self.ps.vel[i]))
+			if ti.math.isnan(self.ps.fluid_particles.vel[i]).any() or ti.math.isinf(self.ps.fluid_particles.vel[i]).any():
+				print("Velocity {} invalid, {}".format(i, self.ps.fluid_particles.vel[i]))
 				is_false = 1
 
-			if ti.math.isnan(self.ps.acc[i]).any() or ti.math.isinf(self.ps.acc[i]).any():
-				print("Acceleration {} invalid, {}".format(i, self.ps.acc[i]))
+			if ti.math.isnan(self.ps.fluid_particles.acc[i]).any() or ti.math.isinf(self.ps.fluid_particles.acc[i]).any():
+				print("Acceleration {} invalid, {}".format(i, self.ps.fluid_particles.acc[i]))
 				is_false = 1
 
 			if is_false == 1:
@@ -151,8 +151,8 @@ class solver_base:
 	@ti.func
 	def compute_viscosity(self, i, j) -> ti.types.vector:
 		ret = ti.Vector([0.0, 0.0, 0.0])
-		v_ij = self.ps.vel[i] - self.ps.vel[j]
-		x_ij = self.ps.pos[i] - self.ps.pos[j]
+		v_ij = self.ps.fluid_particles.vel[i] - self.ps.fluid_particles.vel[j]
+		x_ij = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		shear = v_ij @ x_ij
 		if shear < 0:
 			q = x_ij.norm()
@@ -171,7 +171,7 @@ class solver_base:
 
 	@ti.func
 	def compute_tension(self, i, j) -> ti.math.vec3:
-		q = self.ps.pos[i] - self.ps.pos[j]
+		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		return - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(), self.kernel_h) * q
 
 	@ti.kernel
