@@ -118,6 +118,13 @@ class pbf_solver(solver_base):
 	def compute_rho(self, i, j):
 		return self.ps.particle_m * self.poly_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
 
+	@ti.func
+	def compute_all_rho(self):
+		for i in range(self.particle_count):
+			rho = 0.001
+			self.ps.for_all_neighbor(i, self.compute_rho, rho)
+			self.rho[i] = rho
+
 	def step(self):
 
 		super(pbf_solver, self).step()
