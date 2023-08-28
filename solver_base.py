@@ -28,17 +28,23 @@ class solver_base:
 		self.viscosity = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 		self.tension = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 
-		self.boundary_handle = solver_config.get('boundary_handle', True)
+		self.boundary_handle = 1 if solver_config.get('boundary_handle', True) else 0
+		self.clamp_boundary_handle = 0
+		self.akinci2012_boundary_handle = 1
+
 		print("\033[32m[Solver]: {}\033[0m".format(solver_config.get('name')))
 
 	@ti.func
 	def compute_all_rho(self):
 		for i in range(self.particle_count):
 			rho = 0.001
-			rho_boundary = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho, rho)
-			self.ps.for_all_boundary_neighbor(i, self.compute_rho_from_boundary, rho_boundary)
-			self.rho[i] = rho + rho_boundary * self.rho_0
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				rho_boundary = 0.0
+				self.ps.for_all_boundary_neighbor(i, self.compute_rho_from_boundary, rho_boundary)
+				self.rho[i] = rho + rho_boundary * self.rho_0
+			else:
+				self.rho[i] = rho
 
 	@ti.func
 	def compute_all_task(self):

@@ -74,7 +74,7 @@ class pcisph_solver(solver_base):
 			self.vel_predict[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * (self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
 			self.pos_predict[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.vel_predict[i]
 
-		if not self.boundary_handle:
+		if self.boundary_handle == self.clamp_boundary_handle:
 			for i in range(self.particle_count):
 				for j in ti.static(range(3)):
 					if self.pos_predict[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
@@ -91,7 +91,7 @@ class pcisph_solver(solver_base):
 			rho_predict = 0.0
 
 			self.ps.for_all_neighbor(i, self.compute_rho_predict, rho_predict)
-			if self.boundary_handle:
+			if self.boundary_handle == self.akinci2012_boundary_handle:
 				rho_boundary = 0.0
 				self.ps.for_all_boundary_neighbor(i, self.compute_rho_boundary_predict, rho_boundary)
 				self.rho_predict[i] = rho_predict * self.ps.particle_m + rho_boundary * self.rho_0
@@ -110,7 +110,7 @@ class pcisph_solver(solver_base):
 		for i in range(self.particle_count):
 			press_force = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.compute_press_force, press_force)
-			if self.boundary_handle:
+			if self.boundary_handle == self.akinci2012_boundary_handle:
 				boundary_acc = ti.Vector([0.0, 0.0, 0.0])
 				self.ps.for_all_boundary_neighbor(i, self.compute_boundary_pressure, boundary_acc)
 				self.press_force[i] = - press_force * self.ps.particle_m * self.ps.particle_m + boundary_acc * self.rho_0 * self.ps.particle_m
@@ -172,7 +172,7 @@ class pcisph_solver(solver_base):
 						self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
 			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.ps.fluid_particles.vel[i]
 
-		if not self.boundary_handle:
+		if self.boundary_handle == self.clamp_boundary_handle:
 			for i in range(self.particle_count):
 				for j in ti.static(range(3)):
 					if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
