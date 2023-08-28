@@ -28,18 +28,16 @@ class solver_base:
 		self.viscosity = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 		self.tension = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 
+		self.boundary_handle = solver_config.get('boundary_handle', True)
 		print("\033[32m[Solver]: {}\033[0m".format(solver_config.get('name')))
 
 	@ti.func
 	def compute_all_rho(self):
 		for i in range(self.particle_count):
-			# self.rho[i] = self.solve_rho(i)
 			rho = 0.001
 			rho_boundary = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho, rho)
 			self.ps.for_all_boundary_neighbor(i, self.compute_rho_from_boundary, rho_boundary)
-			# if rho_boundary != 0.0:
-			# 	print(rho_boundary, i)
 			self.rho[i] = rho + rho_boundary * self.rho_0
 
 	@ti.func
