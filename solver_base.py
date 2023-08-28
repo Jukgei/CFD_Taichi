@@ -47,8 +47,9 @@ class solver_base:
 	def compute_rho(self, i, j):
 		return self.ps.particle_m * self.cubic_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
 
+	@staticmethod
 	@ti.func
-	def cubic_kernel(self, r, h):
+	def cubic_kernel(r, h):
 		ret = 0.0
 		q = r / h
 		k = 8 / (ti.math.pi * ti.pow(h, 3))
