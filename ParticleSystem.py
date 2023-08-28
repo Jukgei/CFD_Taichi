@@ -182,11 +182,13 @@ class ParticleSystem:
 
 		center = ti.Vector([0, 0, 0])
 		center_pos = ti.Vector([0.0, 0.0, 0.0])
+		is_same_material = 1
 		if i >= self.particle_num:
 			i -= self.particle_num
 			center = self.boundary_particles.belong_grid[i]
 			center_pos = self.boundary_particles.pos[i]
 		else:
+			is_same_material = 0
 			center = self.fluid_particles.belong_grid[i]
 			center_pos = self.fluid_particles.pos[i]
 
@@ -200,11 +202,10 @@ class ParticleSystem:
 			count = self.boundary_grids[_1d_index].length()
 			for index in range(count):
 				particle_j = self.boundary_grids[_1d_index, index]
-				if particle_j == i:
+				if particle_j == i and is_same_material == 1:
 					continue
 				if (center_pos - self.boundary_particles.pos[particle_j]).norm() > self.support_radius:
 					continue
-				# print('run task')
 				ret += task(i, particle_j)
 
 	@ti.kernel

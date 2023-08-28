@@ -35,8 +35,12 @@ class solver_base:
 		for i in range(self.particle_count):
 			# self.rho[i] = self.solve_rho(i)
 			rho = 0.001
+			rho_boundary = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho, rho)
-			self.rho[i] = rho
+			self.ps.for_all_boundary_neighbor(i, self.compute_rho_from_boundary, rho_boundary)
+			# if rho_boundary != 0.0:
+			# 	print(rho_boundary, i)
+			self.rho[i] = rho + rho_boundary * self.rho_0
 
 	@ti.func
 	def compute_all_task(self):
@@ -46,6 +50,12 @@ class solver_base:
 	@ti.func
 	def compute_rho(self, i, j):
 		return self.ps.particle_m * self.cubic_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
+
+	@ti.func
+	def compute_rho_from_boundary(self, i, j):
+		q = (self.ps.fluid_particles.pos[i] - self.ps.boundary_particles.pos[j]).norm()
+		ret = self.ps.boundary_particles.volume[j] * self.cubic_kernel(q, self.kernel_h)
+		return ret
 
 	@staticmethod
 	@ti.func
@@ -106,7 +116,7 @@ class solver_base:
 
 	@ti.kernel
 	def reset(self):
-		self.ps.fluid_particles.acc.fill(9.8 * ti.Vector([0.0, -1.0, 0.0]))
+		self.ps.fluid_particles.acc.fill(self.gravity * ti.Vector([0.0, -1.0, 0.0]))
 
 	def step(self):
 		self.simulate_cnt[None] += 1
