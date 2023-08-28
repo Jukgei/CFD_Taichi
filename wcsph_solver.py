@@ -40,22 +40,26 @@ class wcsph_solver(solver_base):
 	@ti.kernel
 	def kinematic_phase(self):
 		for i in range(self.particle_count):
-			self.ps.fluid_particles.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i] + \
-											  self.boundary_acc[i]
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				self.ps.fluid_particles.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i] + \
+												  self.boundary_acc[i]
+			else:
+				self.ps.fluid_particles.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i]
 
 		for i in range(self.particle_count):
 			self.ps.fluid_particles.vel[i] += self.ps.fluid_particles.acc[i] * self.delta_time[None]
 			self.ps.fluid_particles.pos[i] += self.ps.fluid_particles.vel[i] * self.delta_time[None]
 
-	# for i in range(self.particle_count):
-	# 	for j in ti.static(range(3)):
-	# 		if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
-	# 			self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
-	# 			# self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
-	#
-	# 		if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
-	# 			self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
-	# self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
+		if self.boundary_handle == self.clamp_boundary_handle:
+			for i in range(self.particle_count):
+				for j in ti.static(range(3)):
+					if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
+						self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
+						self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
+
+					if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
+						self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
+						self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
 	@ti.func
 	def solve_all_pressure(self):
@@ -71,10 +75,11 @@ class wcsph_solver(solver_base):
 		# neighbor
 		for i in range(self.particle_count):
 			ret = ti.Vector([0.0, 0.0, 0.0])
-			boundary_acc = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.compute_pressure_gradient, ret)
-			self.ps.for_all_boundary_neighbor(i, self.compute_boundary_pressure, boundary_acc)
-			self.boundary_acc[i] = boundary_acc * self.rho_0
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				boundary_acc = ti.Vector([0.0, 0.0, 0.0])
+				self.ps.for_all_boundary_neighbor(i, self.compute_boundary_pressure, boundary_acc)
+				self.boundary_acc[i] = boundary_acc * self.rho_0
 			self.pressure_gradient[i] = ret
 
 	@ti.func
