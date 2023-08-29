@@ -47,17 +47,32 @@ class iisph_solver(solver_base):
 			self.v_adv[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * self.f_adv[i] / self.ps.particle_m
 			d_ii = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.compute_d_ii, d_ii)
-			self.d_ii[i] = d_ii * self.delta_time[None] * self.delta_time[None]
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				d_ii_boundary = ti.Vector([0.0, 0.0, 0.0])
+				self.ps.for_all_boundary_neighbor(i, self.compute_boundary_d_ii, d_ii_boundary)
+				self.d_ii[i] = (d_ii + d_ii_boundary * self.rho_0) * self.delta_time[None] * self.delta_time[None]
+			else:
+				self.d_ii[i] = d_ii * self.delta_time[None] * self.delta_time[None]
 
 		for i in range(self.particle_count):
 			rho_adv = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho_adv, rho_adv)
-			# self.rho_adv[i] = ti.max(rho_adv * self.delta_time[None] + self.rho[i], self.rho[i])
-			self.rho_adv[i] = rho_adv * self.delta_time[None] + self.rho[i]
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				rho_adv_boundary = 0.0
+				self.ps.for_all_boundary_neighbor(i, self.compute_rho_adv_boundary, rho_adv_boundary)
+				self.rho_adv[i] = (rho_adv + rho_adv_boundary * self.rho_0) * self.delta_time[None] + self.rho[i]
+			else:
+				# self.rho_adv[i] = ti.max(rho_adv * self.delta_time[None] + self.rho[i], self.rho[i])
+				self.rho_adv[i] = rho_adv * self.delta_time[None] + self.rho[i]
 			self.p_iter[i] = 0.5 * self.p_past[i]
 			a_ii = 0.0
 			self.ps.for_all_neighbor(i, self.compute_a_ii, a_ii)
-			self.a_ii[i] = a_ii
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				a_ii_boundary = 0.0
+				self.ps.for_all_boundary_neighbor(i, self.compute_a_ii_boundary, a_ii_boundary)
+				self.a_ii[i] = a_ii + a_ii_boundary * self.rho_0
+			else:
+				self.a_ii[i] = a_ii
 
 	# @ti.kernel
 	def pressure_solve(self):
@@ -96,7 +111,6 @@ class iisph_solver(solver_base):
 	@ti.func
 	def compute_rho_iter(self, i, j):
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		# todo dot?
 		return self.ps.particle_m * (self.f_press[i] / self.ps.particle_m - self.f_press[j] / self.ps.particle_m).dot(
 			self.cubic_kernel_derivative(q, self.kernel_h))
 
@@ -129,7 +143,19 @@ class iisph_solver(solver_base):
 		for i in range(self.particle_count):
 			f_press = ti.Vector([0.0, 0.0, 0.0])
 			self.ps.for_all_neighbor(i, self.compute_press_force, f_press)
-			self.f_press[i] = - f_press * self.ps.particle_m
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				f_press_boundary = ti.Vector([0.0, 0.0, 0.0])
+				self.ps.for_all_boundary_neighbor(i, self.compute_press_force_boundary, f_press_boundary)
+				self.f_press[i] = - f_press * self.ps.particle_m + f_press_boundary * self.rho_0
+			else:
+				self.f_press[i] = - f_press * self.ps.particle_m
+
+	@ti.func
+	def compute_press_force_boundary(self, i, j):
+		q = self.ps.fluid_particles.pos[i] - self.ps.boundary_particles.pos[j]
+		rho_2 = self.rho[i] * self.rho[i]
+		ret = - self.ps.particle_m * self.ps.boundary_particles.volume[j] * self.p_iter[i] / rho_2 * self.cubic_kernel_derivative(q, self.kernel_h)
+		return ret
 
 	@ti.kernel
 	def intergation(self):
@@ -176,13 +202,26 @@ class iisph_solver(solver_base):
 		return - self.ps.particle_m / (self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(q, self.kernel_h)
 
 	@ti.func
+	def compute_boundary_d_ii(self, i, j):
+		q = self.ps.fluid_particles.pos[i] - self.ps.boundary_particles.pos[j]
+		return - self.ps.boundary_particles.volume[j] / (self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(q, self.kernel_h)
+
+	@ti.func
 	def compute_a_ii(self, i, j):
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		cubic_kernel_derivative = self.cubic_kernel_derivative(q, self.kernel_h)
-		# todo  check is rho[i] ? or rho[j]?
 		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
 				self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(-q, self.kernel_h)
 		return self.ps.particle_m * (self.d_ii[i] - d_ji).dot(cubic_kernel_derivative)
+
+	@ti.func
+	def compute_a_ii_boundary(self, i, j):
+		q = self.ps.fluid_particles.pos[i] - self.ps.boundary_particles.pos[j]
+		cubic_kernel_derivative = self.cubic_kernel_derivative(q, self.kernel_h)
+		# todo mass
+		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
+				self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(-q, self.kernel_h)
+		return self.ps.boundary_particles.volume[j] * (self.d_ii[i] - d_ji).dot(cubic_kernel_derivative)
 
 	@ti.func
 	def compute_d_ij(self, i, j):
@@ -195,6 +234,12 @@ class iisph_solver(solver_base):
 		v_ij = self.v_adv[i] - self.v_adv[j]
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		return self.ps.particle_m * v_ij.dot(self.cubic_kernel_derivative(q, self.kernel_h))
+
+	@ti.func
+	def compute_rho_adv_boundary(self, i, j):
+		v_ij = self.v_adv[i]
+		q = self.ps.fluid_particles.pos[i] - self.ps.boundary_particles.pos[j]
+		return self.ps.boundary_particles.volume[j] * v_ij.dot(self.cubic_kernel_derivative(q, self.kernel_h))
 
 	def step(self):
 		super(iisph_solver, self).step()

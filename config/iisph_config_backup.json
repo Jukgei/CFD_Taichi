@@ -3,15 +3,18 @@
     "box_min" : [0.0, 0.0, 0.0],
     "box_max" : [1.5, 3.0, 1.5],
     "particle_radius" : 0.025,
-    "gravity": 9.8
+    "gravity": 9.8,
+    "is_output_gif": false,
+    "is_output_ply": false
   },
   "solver": {
     "name" : "iisph",
     "delta_time" : 1e-3,
-    "iter_cnt" : 1
+    "iter_cnt" : 1,
+    "boundary_handle": true
   },
   "fluid" : {
-    "start_pos" : [0.025, 0.025, 0.025],
-    "water_size": [0.3, 0.7, 0.3]
+    "start_pos" : [0.3, 0.5, 0.3],
+    "water_size": [0.7, 1.5, 0.7]
   }
 }
