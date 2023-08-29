@@ -166,15 +166,16 @@ class iisph_solver(solver_base):
 			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.ps.fluid_particles.vel[i]
 
 		# self.check_valid()
-		for i in range(self.particle_count):
-			for j in ti.static(range(3)):
-				if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
-					self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
-					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
+		if self.boundary_handle == self.clamp_boundary_handle:
+			for i in range(self.particle_count):
+				for j in ti.static(range(3)):
+					if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
+						self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
+						self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
-				if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
-					self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
-					self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
+					if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
+						self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
+						self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
 		for i in range(self.particle_count):
 			self.p_past[i] = self.p_iter[i]
