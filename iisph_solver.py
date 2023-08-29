@@ -218,7 +218,6 @@ class iisph_solver(solver_base):
 	def compute_a_ii_boundary(self, i, j):
 		q = self.ps.fluid_particles.pos[i] - self.ps.boundary_particles.pos[j]
 		cubic_kernel_derivative = self.cubic_kernel_derivative(q, self.kernel_h)
-		# todo mass
 		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
 				self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(-q, self.kernel_h)
 		return self.ps.boundary_particles.volume[j] * (self.d_ii[i] - d_ji).dot(cubic_kernel_derivative)
