@@ -111,7 +111,7 @@ class ParticleSystem:
 			if i < bottom_layer_particle_cnt:
 				x = i % x_cnt * self.particle_diameter
 				y = 0.0
-				z = int(i / z_cnt) * self.particle_diameter
+				z = ti.floor(i / x_cnt) * self.particle_diameter
 				self.boundary_particles[i].pos = ti.Vector([x, y, z])
 			elif bottom_layer_particle_cnt <= i < self.boundary_particles_num - bottom_layer_particle_cnt:
 				index = i - bottom_layer_particle_cnt
@@ -138,7 +138,7 @@ class ParticleSystem:
 				index = i - (self.boundary_particles_num - bottom_layer_particle_cnt)
 				x = index % x_cnt * self.particle_diameter
 				y = self.box_max.y
-				z = int(index / z_cnt) * self.particle_diameter
+				z = int(index / x_cnt) * self.particle_diameter
 				self.boundary_particles[i].pos = ti.Vector([x, y, z])
 		self.boundary_particles.index_offset.fill(self.particle_num)
 
