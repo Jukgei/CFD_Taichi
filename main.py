@@ -72,7 +72,7 @@ if __name__ == "__main__":
 	series_prefix = './output/output'
 	is_output_gif = scene_config.get('is_output_gif', False)
 	is_output_ply = scene_config.get('is_output_ply', False)
-	is_pause = False
+	is_pause = not scene_config.get('is_simulate', True)
 	while window.running:
 		# Debug GUI
 		gui = window.get_gui()
