@@ -41,10 +41,10 @@ class wcsph_solver(solver_base):
 	def kinematic_phase(self):
 		for i in range(self.particle_count):
 			if self.boundary_handle == self.akinci2012_boundary_handle:
-				self.ps.fluid_particles.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i] + \
+				self.ps.fluid_particles.acc[i] += self.pressure_gradient[i] + self.viscosity[i] + self.tension[i] + \
 												  self.boundary_acc[i]
 			else:
-				self.ps.fluid_particles.acc[i] += - self.pressure_gradient[i] + self.viscosity[i] + self.tension[i]
+				self.ps.fluid_particles.acc[i] += self.pressure_gradient[i] + self.viscosity[i] + self.tension[i]
 
 		for i in range(self.particle_count):
 			self.ps.fluid_particles.vel[i] += self.ps.fluid_particles.acc[i] * self.delta_time[None]
@@ -83,26 +83,6 @@ class wcsph_solver(solver_base):
 			self.pressure_gradient[i] = ret
 
 	@ti.func
-	def solve_all_viscosity(self):
-		for i in range(self.particle_count):
-			viscousity = ti.Vector([0.0, 0.0, 0.0])
-			self.ps.for_all_neighbor(i, self.compute_viscousity, viscousity)
-			self.viscosity[i] = viscousity
-
-	@ti.func
-	def solve_all_tension(self):
-		for i in range(self.particle_count):
-			tension = ti.Vector([0.0, 0.0, 0.0])
-			self.ps.for_all_neighbor(i, self.compute_tension, tension)
-			self.tension[i] = tension
-
-	@ti.func
-	def compute_tension(self, i, j) -> ti.math.vec3:
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		return - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(),
-																							  self.kernel_h) * q
-
-	@ti.func
 	def solve_p(self, i):
 		rho_i = ti.max(self.rho[i], self.rho_0)
 		p = self.B * ((rho_i / self.rho_0) ** self.gamma - 1.0)
@@ -119,31 +99,32 @@ class wcsph_solver(solver_base):
 		return ret
 
 	@ti.func
-	def compute_pressure_gradient(self, i, j) -> ti.types.vector:
+	def compute_pressure_gradient(self, particle_i, particle_j) -> ti.types.vector:
 		ret = ti.Vector([0.0, 0.0, 0.0])
-		rho_i = self.rho[i]
-		rho_i_2 = rho_i ** 2
+		if particle_j.material == self.ps.material_fluid:
+			i = particle_i.index
+			j = particle_j.index
+			rho_i = self.rho[i]
+			rho_i_2 = rho_i ** 2
 
-		p_i = self.pressure[i]
+			p_i = self.pressure[i]
 
-		p_j = self.pressure[j]
-		rho_j = self.rho[j]
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		ret += self.ps.particle_m * (p_i / rho_i_2 + p_j / (rho_j ** 2)) * self.cubic_kernel_derivative(q, self.kernel_h)  # * dir / (dir.norm() * self.kernel_h)
-		return ret
-
-	@ti.func
-	def compute_viscousity(self, i, j) -> ti.types.vector:
-		ret = ti.Vector([0.0, 0.0, 0.0])
-		v_ij = self.ps.fluid_particles.vel[i] - self.ps.fluid_particles.vel[j]
-		x_ij = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		shear = v_ij @ x_ij
-		if shear < 0:
-			q = x_ij.norm()
-			q2 = q * q
-			nu = (2 * self.viscosity_alpha * self.kernel_h * self.viscosity_c_s) / (self.rho[i] + self.rho[j])
-			pi = -nu * shear / (q2 + self.viscosity_epsilon * self.kernel_h * self.kernel_h)
-			ret += - self.ps.particle_m * pi * self.cubic_kernel_derivative(x_ij, self.kernel_h)
+			p_j = self.pressure[j]
+			rho_j = self.rho[j]
+			q = particle_i.pos - particle_j.pos
+			ret -= self.ps.particle_m * (p_i / rho_i_2 + p_j / (rho_j ** 2)) * self.cubic_kernel_derivative(q, self.kernel_h)  # * dir / (dir.norm() * self.kernel_h)
+		elif particle_j.material == self.ps.material_solid:
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				i = particle_i.index
+				p_i = self.pressure[i]
+				rho_i = self.rho[i]
+				rho_i_2 = rho_i ** 2
+				q = particle_i.pos - particle_j.pos
+				ret = - particle_j.volume * p_i / rho_i_2 * self.cubic_kernel_derivative(q, self.kernel_h) * self.rho_0
+				# particle_j.force += -ret * particle_j.mass
+				self.ps.rigid_particles[particle_j.index].force += -ret * self.ps.particle_m
+				# if ret.norm() > 0:
+				# 	print(particle_j.index, particle_j.force, self.ps.rigid_particles[particle_j.index].force)
 		return ret
 
 	@ti.func

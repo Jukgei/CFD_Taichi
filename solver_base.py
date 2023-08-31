@@ -52,8 +52,14 @@ class solver_base:
 		pass
 
 	@ti.func
-	def compute_rho(self, i, j):
-		return self.ps.particle_m * self.cubic_kernel((self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]).norm(), self.kernel_h)
+	def compute_rho(self, particle_i, particle_j):
+		ret = 0.0
+		if particle_j.material == self.ps.material_fluid:
+			ret = self.ps.particle_m * self.cubic_kernel((particle_i.pos - particle_j.pos).norm(), self.kernel_h)
+		elif particle_j.material == self.ps.material_solid:
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				ret = particle_j.volume * self.cubic_kernel((particle_i.pos - particle_j.pos).norm(), self.kernel_h) * self.rho_0
+		return ret
 
 	@ti.func
 	def compute_rho_from_boundary(self, i, j):
@@ -164,17 +170,30 @@ class solver_base:
 			self.viscosity[i] = viscosity * self.ps.particle_m
 
 	@ti.func
-	def compute_viscosity(self, i, j) -> ti.types.vector:
+	def compute_viscosity(self, particle_i, particle_j) -> ti.types.vector:
 		ret = ti.Vector([0.0, 0.0, 0.0])
-		v_ij = self.ps.fluid_particles.vel[i] - self.ps.fluid_particles.vel[j]
-		x_ij = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		shear = v_ij @ x_ij
-		if shear < 0:
-			q = x_ij.norm()
-			q2 = q * q
-			nu = (2 * self.viscosity_alpha * self.kernel_h * self.viscosity_c_s) / (self.rho[i] + self.rho[j])
-			pi = -nu * shear / (q2 + self.viscosity_epsilon * self.kernel_h * self.kernel_h)
-			ret += - self.ps.particle_m * pi * self.cubic_kernel_derivative(x_ij, self.kernel_h)
+		if particle_j.material == self.ps.material_fluid:
+			v_ij = particle_i.vel - particle_j.vel
+			x_ij = particle_i.pos - particle_j.pos
+			shear = v_ij @ x_ij
+			if shear < 0:
+				q = x_ij.norm()
+				q2 = q * q
+				nu = (2 * self.viscosity_alpha * self.kernel_h * self.viscosity_c_s) / (self.rho[particle_i.index] + self.rho[particle_j.index])
+				pi = -nu * shear / (q2 + self.viscosity_epsilon * self.kernel_h * self.kernel_h)
+				ret += - self.ps.particle_m * pi * self.cubic_kernel_derivative(x_ij, self.kernel_h)
+		elif particle_j.material == self.ps.material_solid:
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				v_ij = particle_i.vel - particle_j.vel
+				x_ij = particle_i.pos - particle_j.pos
+				shear = v_ij @ x_ij
+				if shear < 0:
+					q = x_ij.norm()
+					q2 = q * q
+					nu = (2 * self.viscosity_alpha * self.kernel_h * self.viscosity_c_s) / (
+								self.rho[particle_i.index] + self.rho[particle_j.index])
+					pi = -nu * shear / (q2 + self.viscosity_epsilon * self.kernel_h * self.kernel_h)
+					ret += - self.rho_0 * particle_j.volume * pi * self.cubic_kernel_derivative(x_ij, self.kernel_h)
 		return ret
 
 	@ti.func
@@ -185,9 +204,12 @@ class solver_base:
 			self.tension[i] = tension * self.ps.particle_m
 
 	@ti.func
-	def compute_tension(self, i, j) -> ti.math.vec3:
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		return - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(), self.kernel_h) * q
+	def compute_tension(self, particle_i, particle_j) -> ti.math.vec3:
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		if particle_j.material == self.ps.material_fluid:
+			q = particle_i.pos - particle_j.pos
+			ret = - self.tension_k / self.ps.particle_m * self.ps.particle_m * self.cubic_kernel(q.norm(), self.kernel_h) * q
+		return ret
 
 	@ti.kernel
 	def visualize_rho(self):

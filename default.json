@@ -10,12 +10,20 @@
   },
   "solver": {
     "name" : "wcsph",
-    "delta_time" : 2.5e-4,
+    "delta_time" : 5e-4,
     "iter_cnt" : 1,
     "boundary_handle": true
   },
   "fluid" : {
     "start_pos" : [0.1, 0.1, 0.1],
-    "water_size": [1.0, 2.8, 1.3]
+    "water_size": [4.9, 1.0, 1.3]
+  },
+  "solid" : {
+    "mesh": "./obj/dragon_vrip_res2.ply",
+    "voxel_radius": 0.025,
+    "rho_0": 2000,
+    "scale": 5,
+    "pos_offset": [3.0, 2.0, 0.9],
+    "active": false
   }
 }
