@@ -13,7 +13,8 @@ Particles = ti.types.struct(
 	belong_grid=ti.math.ivec3,
 	index_offset=int,
 	force=ti.math.vec3,
-	index=int
+	index=int,
+	rgb=ti.math.vec3
 	# omega=ti.math.vec3
 )
 
@@ -35,9 +36,11 @@ class ParticleSystem:
 		mesh = tm.load_mesh(solid_config.get('mesh'))
 		mesh = mesh.apply_scale(solid_config.get('scale'))
 		self.voxel_radius = solid_config.get('voxel_radius')
+		# voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius).fill()
 		voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius)
 		voxelized_points_np = voxelized_mesh.points
 		self.rigid_pos_offset = solid_config.get('pos_offset')
+		self.rigid_attitude_offset = ti.Vector(solid_config.get('attitude_offset')) / 180.0 * ti.math.pi
 		self.rigid_rho = solid_config.get('rho_0')
 		self.rigid_particles_num = voxelized_points_np.shape[0]
 		self.rigid_particles = Particles.field(shape=self.rigid_particles_num)
@@ -171,6 +174,13 @@ class ParticleSystem:
 				self.boundary_particles[i].pos = ti.Vector([x, y, z])
 
 		# Init rigid
+		m = ti.math.rotation3d(self.rigid_attitude_offset.x, self.rigid_attitude_offset.z, self.rigid_attitude_offset.y)
+		for i in range(self.rigid_particles_num):
+			pos = self.rigid_particles.pos[i]
+			pos4 = ti.Vector([pos.x, pos.y, pos.z, 1])
+			pos4 = m @ pos4
+			self.rigid_particles.pos[i] = ti.Vector([pos4.x, pos4.y, pos4.z])
+
 		for i in range(self.rigid_particles_num):
 			self.rigid_particles.pos[i] += ti.Vector(self.rigid_pos_offset)
 			self.rigid_particles.index[i] = i
@@ -238,9 +248,10 @@ class ParticleSystem:
 			Iyz += - self.rigid_particles.mass[i] * (pos.z * pos.y)
 
 		self.rigid_inertia_tensor[None] = ti.math.inverse(ti.math.mat3([Ixx, Ixy, Ixz], [Ixy, Iyy, Iyz], [Ixz, Iyz, Izz]))
-
+		print("Intertia tensor: {}".format(self.rigid_inertia_tensor[None]))
 	# @ti.kernel
 	# def compute_all_rigid_volume(self):
+		self.rigid_particles.rgb.fill(ti.Vector([1.0, 0.0, 0.0]))
 
 
 	@ti.func
