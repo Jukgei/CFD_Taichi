@@ -28,39 +28,37 @@ class rigid_solver:
 		force = ti.Vector([0.0, 0.0, 0.0])
 		for i in range(self.particle_count):
 			force += self.ps.rigid_particles.force[i]
+			# self.ps.rigid_particles.force[i] = ti.Vector([0.0, 0.0, 0.0])
+
+		# rotation
+		torque = ti.Vector([0.0, 0.0, 0.0])
+		for i in range(self.particle_count):
+			pos = self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None]
+			torque += ti.math.cross(pos, self.ps.rigid_particles.force[i])
 			self.ps.rigid_particles.force[i] = ti.Vector([0.0, 0.0, 0.0])
-		# torque = ti.Vector([0.0, 0.0, 0.0])
-		# # if self.simulate_cnt[None] == 1:
-		# # 	torque = ti.Vector([0.0, 10.0, 0.0])
-		# for i in range(self.particle_count):
-		# 	pos = self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None]
-		# 	torque += ti.math.cross(pos, force)
-		#
-		# alpha = self.ps.rigid_inertia_tensor[None] @ torque
-		#
-		# # m = ti.math.rotation3d(1.0 / 180.0 * ti.math.pi, 0.0, 0.0)
-		# # m = ti.math.rot_yaw_pitch_roll(0.0, 0.0, 0.0)
-		# # if self.simulate_cnt[None] > 1500:
-		# 	# m = ti.math.rot_yaw_pitch_roll(0.1 / 180.0 * ti.math.pi, 0.0, 0.0)
-		# 	# m = ti.math.rotation3d(0.0, 1.0 / 180.0 * ti.math.pi, 0.0)
-		# # m[0, 3] = self.ps.rigid_centriod[None].x
-		# # m[1, 3] = self.ps.rigid_centriod[None].y
-		# # m[2, 3] = self.ps.rigid_centriod[None].z
-		# # print(m)
-		# self.omega[None] += alpha * self.delta_time[None]
-		# self.attitude[None] += self.omega[None] * self.delta_time[None]
+
+		alpha = self.ps.rigid_inertia_tensor[None] @ torque
+		# m = ti.math.rotation3d(0.0, 0.0, 0.0)
+		# m = ti.math.rot_yaw_pitch_roll(1.0 / 180.0 * ti.math.pi, 0, 0)
+		# m[0, 3] = -self.ps.rigid_centriod[None].x
+		# m[1, 3] = -self.ps.rigid_centriod[None].y
+		# m[2, 3] = -self.ps.rigid_centriod[None].z
+		# print(m)
+		self.omega[None] += alpha * self.delta_time[None]
+		self.attitude[None] = self.omega[None] * self.delta_time[None]
 		# m = ti.math.rotation3d(self.omega[None].x, self.omega[None].z, self.omega[None].y)
-		# for i in range(self.particle_count):
-		# 	self.ps.rigid_particles.pos[i] -= self.ps.rigid_centriod[None]
-		#
-		# for i in range(self.particle_count):
-		# 	pos = self.ps.rigid_particles.pos[i]
-		# 	pos4 = ti.Vector([pos.x, pos.y, pos.z, 1])
-		# 	pos4 = m @ pos4
-		# 	self.ps.rigid_particles.pos[i] = ti.Vector([pos4.x, pos4.y, pos4.z])
-		#
-		# for i in range(self.particle_count):
-		# 	self.ps.rigid_particles.pos[i] += self.ps.rigid_centriod[None]
+		m = ti.math.rotation3d(self.attitude[None].x, self.attitude[None].z, self.attitude[None].y)
+		for i in range(self.particle_count):
+			self.ps.rigid_particles.pos[i] -= self.ps.rigid_centriod[None]
+
+		for i in range(self.particle_count):
+			pos = self.ps.rigid_particles.pos[i]
+			pos4 = ti.Vector([pos.x, pos.y, pos.z, 1])
+			pos4 = m @ pos4
+			self.ps.rigid_particles.pos[i] = ti.Vector([pos4.x, pos4.y, pos4.z])
+
+		for i in range(self.particle_count):
+			self.ps.rigid_particles.pos[i] += self.ps.rigid_centriod[None]
 
 		sum_mass = 0.0
 		for i in range(self.particle_count):
