@@ -7,6 +7,7 @@ import importlib
 import utils
 import numpy as np
 from ParticleSystem import ParticleSystem
+from rigid_solver import rigid_solver
 
 parser = argparse.ArgumentParser(description='SPH in Taichi')
 parser.add_argument('--config', help="Please input a scene config json file.", type=str, default='default.json')
@@ -53,9 +54,10 @@ if __name__ == "__main__":
 	scene = ti.ui.Scene()
 
 	camera = ti.ui.Camera()
-	camera.position(7, 3, 5)
-	camera.lookat(-5, -2, -2)
-	camera.up(0, 1, 0)
+	print(type(scene_config.get('cam_pos')))
+	camera.position(*scene_config.get('cam_pos'))
+	camera.lookat(*scene_config.get('cam_look_at'))
+	camera.up(*scene_config.get('cam_up'))
 	scene.set_camera(camera)
 
 	ps = ParticleSystem(config)
@@ -63,24 +65,55 @@ if __name__ == "__main__":
 	module = importlib.import_module(solver_name + '_solver')
 	solver_ = getattr(module, solver_name + '_solver')
 	solver = solver_(ps, config)
+	rs = rigid_solver(ps, config)
+
 	frame_cnt = 0
 	iter_cnt = solver_config.get('iter_cnt')
 
-	video_manager = ti.tools.VideoManager(output_dir="./output", framerate=24, automatic_build=False)
+	video_manager = ti.tools.VideoManager(output_dir="./output", framerate=60, automatic_build=False)
 
 	np_rgba = np.reshape(ps.rgba.to_numpy(), (ps.particle_num, 4))
 	series_prefix = './output/output'
 	is_output_gif = scene_config.get('is_output_gif', False)
 	is_output_ply = scene_config.get('is_output_ply', False)
 	is_pause = not scene_config.get('is_simulate', True)
+	flag = 0
+	render_fluid = True
+	render_rigid = True
 	while window.running:
 		# Debug GUI
+
+		if frame_cnt > 3300:
+			ps.active_rigid[None] = 1
+			if not flag:
+				flag = 1
+				ps.reset_grid()
+				ps.update_grid()
+				ps.init_rigid_particles_data()
+
 		gui = window.get_gui()
 		gui.text("frame_cnt: {}".format(frame_cnt))
 		gui.text("time: {:.4f}".format(frame_cnt * iter_cnt * solver.delta_time[None]))
 		gui.text("Pause: {}".format(is_pause))
 		if window.is_pressed(ti.GUI.SPACE):
 			is_pause = not is_pause
+		if window.is_pressed('f'):
+			render_fluid = True
+		if window.is_pressed('g'):
+			render_fluid = False
+		if window.is_pressed('r'):
+			render_rigid = True
+		if window.is_pressed('t'):
+			render_rigid = False
+		if window.is_pressed('c'):
+			print('Camera position [{}]'.format(', '.join('{:.2f}'.format(x) for x in camera.curr_position)))
+			print('Camera look at [{}]'.format(', '.join('{:.2f}'.format(x) for x in camera.curr_lookat)))
+			print('Camera up [{}]'.format(', '.join('{:.2f}'.format(x) for x in camera.curr_up)))
+
+		if window.is_pressed('b'):
+			camera.position(*scene_config.get('cam_pos'))
+			camera.lookat(*scene_config.get('cam_look_at'))
+			camera.up(*scene_config.get('cam_up'))
 
 		# Cam and light
 		camera.track_user_inputs(window, movement_speed=0.05, hold_key=ti.ui.RMB)
@@ -89,12 +122,22 @@ if __name__ == "__main__":
 		scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))
 		# if not is_pause:
 		# 	solver.visualize_rho()
-		scene.particles(ps.fluid_particles.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.rgb)
+		if render_fluid:
+			scene.particles(ps.fluid_particles.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.rgb)
+		if render_rigid:
+			scene.particles(ps.rigid_particles.pos, color=(1.0, 0.0, 0), radius=ps.particle_radius)#per_vertex_color=ps.rigid_particles.rgb)
+		# scene.particles(rs.temp_pos, color=(1.0, 0.0, 0), radius=ps.particle_radius, per_vertex_color=ps.rigid_particles.rgb)
 		# scene.particles(ps.boundary_particles.pos, color=(1.0, 1.0, 1.0), radius=ps.particle_radius)
 
 		if not is_pause:
 			for i in range(iter_cnt):
 				solver.step()
+			# if frame_cnt > 8000:
+
+			for i in range(iter_cnt):
+				if ps.active_rigid[None] == 1:
+					rs.step()
+
 			# is_pause = True
 			# ti.profiler.print_kernel_profiler_info()
 			# ti.profiler.clear_kernel_profiler_info()
