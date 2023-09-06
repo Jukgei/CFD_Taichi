@@ -1,5 +1,5 @@
 .idea
 imgui.ini
 __pycache__
-output/frames
+output
 *.ply
