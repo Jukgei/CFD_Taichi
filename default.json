@@ -24,9 +24,9 @@
   "solid" : {
     "mesh": "./obj/cube1.STL",
     "voxel_radius": 0.025,
-    "rho_0": 2000,
-    "scale": 7,
-    "pos_offset": [3.0, 0.00, 0.8],
+    "rho_0": 200,
+    "scale": 1,
+    "pos_offset": [3.0, 0.00, 0.2],
     "attitude_offset": [0.0, 0.0, 0.0],
     "fill": true,
     "active": true

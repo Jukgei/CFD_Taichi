@@ -434,8 +434,6 @@ class ParticleSystem:
 				# 	continue
 				if (particle.pos - particle_j.pos).norm() > self.support_radius:
 					continue
-				if particle_j.material == self.material_solid and particle.material == self.material_fluid:
-					print('fluid index {}, solid index {}'.format(particle.index, particle_j.index))
 				# ret += task(i, neighbor_index)
 				ret += task(particle, particle_j)
 
