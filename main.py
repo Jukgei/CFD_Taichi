@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import time
 import taichi as ti
 import logging
 import argparse
@@ -46,7 +47,7 @@ for i, val in enumerate([0, 1, 0, 2, 1, 3, 2, 3, 4, 5, 4, 6, 5, 7, 6, 7, 0, 4, 1
 if __name__ == "__main__":
 
 	print("Simulation Start!")
-
+	start_time = time.time()
 	window = ti.ui.Window('Window Title', res=(640, 640), pos=(150, 150))
 
 	canvas = window.get_canvas()
@@ -54,7 +55,7 @@ if __name__ == "__main__":
 	scene = ti.ui.Scene()
 
 	camera = ti.ui.Camera()
-	print(type(scene_config.get('cam_pos')))
+
 	camera.position(*scene_config.get('cam_pos'))
 	camera.lookat(*scene_config.get('cam_look_at'))
 	camera.up(*scene_config.get('cam_up'))
@@ -65,7 +66,9 @@ if __name__ == "__main__":
 	module = importlib.import_module(solver_name + '_solver')
 	solver_ = getattr(module, solver_name + '_solver')
 	solver = solver_(ps, config)
-	rs = rigid_solver(ps, config)
+	rs = None
+	if config.get('solid', {}):
+		rs = rigid_solver(ps, config)
 
 	frame_cnt = 0
 	iter_cnt = solver_config.get('iter_cnt')
@@ -83,20 +86,25 @@ if __name__ == "__main__":
 	while window.running:
 		# Debug GUI
 
-		if frame_cnt > 3300:
-			ps.active_rigid[None] = 1
-			if not flag:
-				flag = 1
-				ps.reset_grid()
-				ps.update_grid()
-				ps.init_rigid_particles_data()
+		if frame_cnt > 40000:
+			break
+		# 	ps.active_rigid[None] = 1
+		# 	if not flag:
+		# 		flag = 1
+		# 		ps.reset_grid()
+		# 		ps.update_grid()
+		# 		ps.init_rigid_particles_data()
 
 		gui = window.get_gui()
 		gui.text("frame_cnt: {}".format(frame_cnt))
 		gui.text("time: {:.4f}".format(frame_cnt * iter_cnt * solver.delta_time[None]))
 		gui.text("Pause: {}".format(is_pause))
+		if window.is_pressed(ti.GUI.ESCAPE):
+			break
 		if window.is_pressed(ti.GUI.SPACE):
-			is_pause = not is_pause
+			is_pause = False
+		if window.is_pressed('p'):
+			is_pause = True
 		if window.is_pressed('f'):
 			render_fluid = True
 		if window.is_pressed('g'):
@@ -124,21 +132,18 @@ if __name__ == "__main__":
 		# 	solver.visualize_rho()
 		if render_fluid:
 			scene.particles(ps.fluid_particles.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.rgb)
-		if render_rigid:
-			scene.particles(ps.rigid_particles.pos, color=(1.0, 0.0, 0), radius=ps.particle_radius)#per_vertex_color=ps.rigid_particles.rgb)
-		# scene.particles(rs.temp_pos, color=(1.0, 0.0, 0), radius=ps.particle_radius, per_vertex_color=ps.rigid_particles.rgb)
+		if render_rigid and config.get('solid', {}):
+			scene.particles(ps.rigid_particles.pos, color=(1.0, 0.0, 0), radius=ps.particle_radius, per_vertex_color=ps.rigid_particles.rgb)
 		# scene.particles(ps.boundary_particles.pos, color=(1.0, 1.0, 1.0), radius=ps.particle_radius)
 
 		if not is_pause:
 			for i in range(iter_cnt):
 				solver.step()
-			# if frame_cnt > 8000:
 
 			for i in range(iter_cnt):
-				if ps.active_rigid[None] == 1:
+				if rs and ps.active_rigid[None] == 1:
 					rs.step()
-
-			# is_pause = True
+			frame_cnt += 1
 			# ti.profiler.print_kernel_profiler_info()
 			# ti.profiler.clear_kernel_profiler_info()
 		# ti.profiler.print_kernel_profiler_info()
@@ -148,7 +153,7 @@ if __name__ == "__main__":
 		canvas.scene(scene)
 
 		# gui.show(f'frame/{frame_cnt:06d}.png')
-		frame_cnt += 1
+
 		if is_output_gif:
 			img = window.get_image_buffer_as_numpy()
 			video_manager.write_frame(img)
@@ -165,3 +170,5 @@ if __name__ == "__main__":
 
 	if is_output_gif:
 		video_manager.make_video(gif=True, mp4=False)
+
+	print("Simulation time: {}".format(time.time() - start_time))
