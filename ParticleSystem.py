@@ -31,24 +31,34 @@ class ParticleSystem:
 		scene_config = config.get('scene')
 		solver_config = config.get('solver')
 		fluid_config = config.get('fluid')
-		solid_config = config.get('solid')
+		solid_config = config.get('solid', {})
 
-		mesh = tm.load_mesh(solid_config.get('mesh'))
-		mesh = mesh.apply_scale(solid_config.get('scale'))
-		self.voxel_radius = solid_config.get('voxel_radius')
-		# voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius).fill()
-		voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius)
-		voxelized_points_np = voxelized_mesh.points
-		self.rigid_pos_offset = solid_config.get('pos_offset')
-		self.rigid_attitude_offset = ti.Vector(solid_config.get('attitude_offset')) / 180.0 * ti.math.pi
-		self.rigid_rho = solid_config.get('rho_0')
-		self.rigid_particles_num = voxelized_points_np.shape[0]
-		self.rigid_particles = Particles.field(shape=self.rigid_particles_num)
-		self.rigid_particles.pos.from_numpy(voxelized_points_np)
-		self.rigid_centriod = ti.field(ti.math.vec3, shape=())
-		self.rigid_inertia_tensor = ti.field(ti.math.mat3, shape=())
-		self.active_rigid = ti.field(int, shape=())
-		self.active_rigid[None] = 1 if solid_config.get('active') else 0
+		self.exist_rigid = ti.field(int, shape=())
+		self.exist_rigid[None] = 1 if solid_config else 0
+		if self.exist_rigid[None] == 1:
+			mesh = tm.load_mesh(solid_config.get('mesh'))
+			mesh = mesh.apply_scale(solid_config.get('scale'))
+			self.voxel_radius = solid_config.get('voxel_radius')
+			if solid_config.get('fill', True):
+				voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius).fill()
+			else:
+				voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius)
+			voxelized_points_np = voxelized_mesh.points
+			self.rigid_pos_offset = solid_config.get('pos_offset')
+			self.rigid_attitude_offset = ti.Vector(solid_config.get('attitude_offset')) / 180.0 * ti.math.pi
+			self.rigid_rho = solid_config.get('rho_0')
+			self.rigid_particles_num = voxelized_points_np.shape[0]
+			self.rigid_particles = Particles.field(shape=self.rigid_particles_num)
+			self.rigid_particles.pos.from_numpy(voxelized_points_np)
+			self.rigid_centriod = ti.field(ti.math.vec3, shape=())
+			self.rigid_inertia_tensor = ti.field(ti.math.mat3, shape=())
+			self.active_rigid = ti.field(int, shape=())
+			self.active_rigid[None] = 1 if solid_config.get('active', False) else 0
+		else:
+			self.rigid_particles_num = 0
+			self.rigid_particles = Particles.field(shape=1)
+			# self.rigid_particles = None
+			# self.rigid_particles = Particles.field(shape=self.rigid_particles_num)
 		# self.voxelized_points = ti.Vector.field(3, ti.f32, self.rigid_particles_num)
 		# self.voxelized_points.from_numpy(voxelized_points_np)
 
@@ -98,6 +108,8 @@ class ParticleSystem:
 		self.rgb.fill(ti.Vector([0.0, 0.28, 1.0]))
 
 		self.init_particle_pos()
+		if self.exist_rigid[None] == 1:
+			self.init_rigid_particles_pos()
 		self.init_particles_data()
 
 		print('Fluid particle count: {}k'.format(self.particle_num/1000))
@@ -174,16 +186,21 @@ class ParticleSystem:
 				self.boundary_particles[i].pos = ti.Vector([x, y, z])
 
 		# Init rigid
+	@ti.kernel
+	def init_rigid_particles_pos(self):
 		m = ti.math.rotation3d(self.rigid_attitude_offset.x, self.rigid_attitude_offset.z, self.rigid_attitude_offset.y)
 		for i in range(self.rigid_particles_num):
-			pos = self.rigid_particles.pos[i]
-			pos4 = ti.Vector([pos.x, pos.y, pos.z, 1])
-			pos4 = m @ pos4
-			self.rigid_particles.pos[i] = ti.Vector([pos4.x, pos4.y, pos4.z])
+			if self.exist_rigid[None] == 1:
+
+				pos = self.rigid_particles.pos[i]
+				pos4 = ti.Vector([pos.x, pos.y, pos.z, 1])
+				pos4 = m @ pos4
+				self.rigid_particles.pos[i] = ti.Vector([pos4.x, pos4.y, pos4.z])
 
 		for i in range(self.rigid_particles_num):
-			self.rigid_particles.pos[i] += ti.Vector(self.rigid_pos_offset)
-			self.rigid_particles.index[i] = i
+			if self.exist_rigid[None] == 1:
+				self.rigid_particles.pos[i] += ti.Vector(self.rigid_pos_offset)
+				self.rigid_particles.index[i] = i
 
 	def init_particles_data(self):
 		self.fluid_particles.material.fill(self.material_fluid)
@@ -192,8 +209,9 @@ class ParticleSystem:
 		self.boundary_particles.index_offset.fill(self.particle_num)
 		self.boundary_particles.material.fill(self.material_solid_boundary)
 
-		self.rigid_particles.index_offset.fill(self.particle_num + self.boundary_particles_num)
-		self.rigid_particles.material.fill(self.material_solid)
+		if self.exist_rigid[None] == 1:
+			self.rigid_particles.index_offset.fill(self.particle_num + self.boundary_particles_num)
+			self.rigid_particles.material.fill(self.material_solid)
 
 		self.reset_boundary_grids()
 		self.update_boundary_grids()
@@ -204,7 +222,8 @@ class ParticleSystem:
 		self.compute_all_boundary_volume()
 
 		# self.compute_all_rigid_volume()
-		self.init_rigid_particles_data()
+		if self.exist_rigid[None]:
+			self.init_rigid_particles_data()
 
 	@ti.kernel
 	def init_rigid_particles_data(self):
@@ -247,7 +266,7 @@ class ParticleSystem:
 			Ixz += - self.rigid_particles.mass[i] * (pos.x * pos.z)
 			Iyz += - self.rigid_particles.mass[i] * (pos.z * pos.y)
 
-		self.rigid_inertia_tensor[None] = ti.math.inverse(ti.math.mat3([Ixx, Ixy, Ixz], [Ixy, Iyy, Iyz], [Ixz, Iyz, Izz]))
+		self.rigid_inertia_tensor[None] = ti.math.mat3([Ixx, Ixy, Ixz], [Ixy, Iyy, Iyz], [Ixz, Iyz, Izz])
 		print("Intertia tensor: {}".format(self.rigid_inertia_tensor[None]))
 	# @ti.kernel
 	# def compute_all_rigid_volume(self):
@@ -334,14 +353,23 @@ class ParticleSystem:
 		self.update_grid()
 		self.check_all_grid()
 
-	@ti.kernel
+	# @ti.kernel
 	def update_grid(self):
+		self.update_grid_fluid_particles()
+
+		if self.exist_rigid[None] == 1:
+			self.update_grid_rigid_particles()
+
+	@ti.kernel
+	def update_grid_fluid_particles(self):
 		for i in range(self.particle_num):
 			grid_index_3d = self.get_particle_grid_index_3d(self.fluid_particles.pos[i])
 			grid_index_1d = self.get_particle_grid_index_1d(grid_index_3d)
 			self.grids[grid_index_1d].append(i)
 			self.fluid_particles.belong_grid[i] = grid_index_3d
 
+	@ti.kernel
+	def update_grid_rigid_particles(self):
 		for i in range(self.rigid_particles_num):
 			if self.active_rigid[None] == 0:
 				continue
@@ -349,7 +377,6 @@ class ParticleSystem:
 			grid_index_1d = self.get_particle_grid_index_1d(grid_index_3d)
 			self.grids[grid_index_1d].append(i + self.rigid_particles.index_offset[i])
 			self.rigid_particles.belong_grid[i] = grid_index_3d
-
 
 	@ti.kernel
 	def get_max_neighbor_particle_index(self) -> ti.int32:
@@ -407,6 +434,8 @@ class ParticleSystem:
 				# 	continue
 				if (particle.pos - particle_j.pos).norm() > self.support_radius:
 					continue
+				if particle_j.material == self.material_solid and particle.material == self.material_fluid:
+					print('fluid index {}, solid index {}'.format(particle.index, particle_j.index))
 				# ret += task(i, neighbor_index)
 				ret += task(particle, particle_j)
 
