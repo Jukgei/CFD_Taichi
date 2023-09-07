@@ -125,9 +125,13 @@ class pcisph_solver(solver_base):
 		return rho_err_sum / self.particle_count
 
 	@ti.func
-	def compute_rho_predict(self, i, j):
-		q = (self.pos_predict[i] - self.pos_predict[j]).norm()
-		w_ij = self.cubic_kernel(q, self.kernel_h)
+	def compute_rho_predict(self, particle_i, particle_j):
+		w_ij = 0.0
+		if particle_j.material == self.ps.material_fluid:
+			i = particle_i.index
+			j = particle_j.index
+			q = (self.pos_predict[i] - self.pos_predict[j]).norm()
+			w_ij = self.cubic_kernel(q, self.kernel_h)
 		return w_ij
 
 	@ti.func
@@ -137,23 +141,28 @@ class pcisph_solver(solver_base):
 		return w_ij
 
 	@ti.func
-	def compute_sum(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
+	def compute_sum(self, particle_i, particle_j):
+		q = particle_i.pos - particle_j.pos
 		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		return dw_ij
 
 	@ti.func
-	def compute_square_sum(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
+	def compute_square_sum(self, particle_i, particle_j):
+		q = particle_i.pos - particle_j.pos
 		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		dw_ij_2 = dw_ij.dot(dw_ij)
 		return dw_ij_2
 
 	@ti.func
-	def compute_press_force(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
-		return (self.press_iter[i] + self.press_iter[j]) * dw_ij / (self.rho_0 ** 2)
+	def compute_press_force(self, particle_i, particle_j):
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		if particle_j.material == self.ps.material_fluid:
+			i = particle_i.index
+			j = particle_j.index
+			q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
+			dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
+			ret = (self.press_iter[i] + self.press_iter[j]) * dw_ij / (self.rho_0 ** 2)
+		return ret
 
 	@ti.func
 	def compute_boundary_pressure(self, i, j):
