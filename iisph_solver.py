@@ -181,7 +181,9 @@ class iisph_solver(solver_base):
 			self.p_past[i] = self.p_iter[i]
 
 	@ti.func
-	def compute_press_force(self, i, j):
+	def compute_press_force(self, particle_i, particle_j):
+		i = particle_i.index
+		j = particle_j.index
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 
 		return self.ps.particle_m * (self.p_iter[i] / ti.pow(self.rho[i], 2) + self.p_iter[j] / ti.pow(self.rho[j],
@@ -189,7 +191,9 @@ class iisph_solver(solver_base):
 			q, self.kernel_h)
 
 	@ti.func
-	def sum_factor(self, i, j):
+	def sum_factor(self, particle_i, particle_j):
+		i = particle_i.index
+		j = particle_j.index
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		w_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		w_ji = self.cubic_kernel_derivative(-q, self.kernel_h)
@@ -198,8 +202,9 @@ class iisph_solver(solver_base):
 		return self.ps.particle_m * (self.d_ij[i] - self.d_ii[j] * self.p_iter[j] - (self.d_ij[j] - d_ji)).dot(w_ij)
 
 	@ti.func
-	def compute_d_ii(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
+	def compute_d_ii(self, particle_i, particle_j):
+		i = particle_i.index
+		q = particle_i.pos - particle_j.pos
 		return - self.ps.particle_m / (self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(q, self.kernel_h)
 
 	@ti.func
@@ -208,7 +213,9 @@ class iisph_solver(solver_base):
 		return - self.ps.boundary_particles.volume[j] / (self.rho[i] * self.rho[i]) * self.cubic_kernel_derivative(q, self.kernel_h)
 
 	@ti.func
-	def compute_a_ii(self, i, j):
+	def compute_a_ii(self, particle_i, particle_j):
+		i = particle_i.index
+		j = particle_j.index
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		cubic_kernel_derivative = self.cubic_kernel_derivative(q, self.kernel_h)
 		d_ji = - self.delta_time[None] * self.delta_time[None] * self.ps.particle_m / (
@@ -224,13 +231,17 @@ class iisph_solver(solver_base):
 		return self.ps.boundary_particles.volume[j] * (self.d_ii[i] - d_ji).dot(cubic_kernel_derivative)
 
 	@ti.func
-	def compute_d_ij(self, i, j):
+	def compute_d_ij(self, particle_i, particle_j):
+		i = particle_i.index
+		j = particle_j.index
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		w_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 		return - self.ps.particle_m * self.p_iter[j] * w_ij / (self.rho[j] * self.rho[j])
 
 	@ti.func
-	def compute_rho_adv(self, i, j):
+	def compute_rho_adv(self, particle_i, particle_j):
+		i = particle_i.index
+		j = particle_j.index
 		v_ij = self.v_adv[i] - self.v_adv[j]
 		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 		return self.ps.particle_m * v_ij.dot(self.cubic_kernel_derivative(q, self.kernel_h))
