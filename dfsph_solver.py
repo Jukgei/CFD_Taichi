@@ -45,16 +45,21 @@ class dfsph_solver(solver_base):
 				self.alpha[i] = self.rho[i] / denominator
 
 	@ti.func
-	def compute_sum(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		ret = self.ps.particle_m * self.cubic_kernel_derivative(q, self.kernel_h)
+	def compute_sum(self, particle_i, particle_j):
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		if particle_j.material == self.ps.material_fluid:
+			q = particle_i.pos - particle_j.pos
+			ret = self.ps.particle_m * self.cubic_kernel_derivative(q, self.kernel_h)
 		return ret
 
 	@ti.func
-	def compute_square_sum(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		ret = self.ps.particle_m * self.cubic_kernel_derivative(q, self.kernel_h)
-		return ret.dot(ret)
+	def compute_square_sum(self, particle_i, particle_j):
+		ans = 0.0
+		if particle_j.material == self.ps.material_fluid:
+			q = particle_i.pos - particle_j.pos
+			ret = self.ps.particle_m * self.cubic_kernel_derivative(q, self.kernel_h)
+			ans = ret.dot(ret)
+		return ans
 
 	@ti.func
 	def compute_sum_boundary(self, i, j):
@@ -102,9 +107,15 @@ class dfsph_solver(solver_base):
 		return rho_avg / self.particle_count
 
 	@ti.func
-	def compute_rho_adv(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		return self.ps.particle_m * (self.vel_adv[i] - self.vel_adv[j]).dot(self.cubic_kernel_derivative(q, self.kernel_h))
+	def compute_rho_adv(self, particle_i, particle_j):
+		ret = 0.0
+		if particle_j.material == self.ps.material_fluid:
+			i = particle_i.index
+			j = particle_j.index
+			q = particle_i.pos - particle_j.pos
+			kernel = self.cubic_kernel_derivative(q, self.kernel_h)
+			ret = self.ps.particle_m * (self.vel_adv[i] - self.vel_adv[j]).dot(kernel)
+		return ret
 
 	@ti.func
 	def compute_rho_adv_boundary(self, i, j):
@@ -127,11 +138,16 @@ class dfsph_solver(solver_base):
 			self.vel_adv[i] -= self.vel_adv_delta[i] * self.delta_time[None]
 
 	@ti.func
-	def iter_vel_adv(self, i, j):
-		k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2
-		k_j = (self.rho_adv[j] - self.rho_0) * self.alpha[j] / self.delta_time_2
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		return self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * self.cubic_kernel_derivative(q, self.kernel_h)
+	def iter_vel_adv(self, particle_i, particle_j):
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		if particle_j.material == self.ps.material_fluid:
+			i = particle_i.index
+			j = particle_j.index
+			k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2
+			k_j = (self.rho_adv[j] - self.rho_0) * self.alpha[j] / self.delta_time_2
+			q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
+			ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * self.cubic_kernel_derivative(q, self.kernel_h)
+		return ret
 
 	@ti.func
 	def iter_vel_adv_boundary(self, i, j):
@@ -191,9 +207,12 @@ class dfsph_solver(solver_base):
 		return avg / self.particle_count
 
 	@ti.func
-	def compute_rho_derivative(self, i, j):
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		return self.ps.particle_m * (self.ps.fluid_particles.vel[i] - self.ps.fluid_particles.vel[j]).dot(self.cubic_kernel_derivative(q, self.kernel_h))
+	def compute_rho_derivative(self, particle_i, particle_j):
+		ret = 0.0
+		if particle_j.material == self.ps.material_fluid:
+			q = particle_i.pos - particle_j.pos
+			ret = self.ps.particle_m * (particle_i.vel - particle_j.vel).dot(self.cubic_kernel_derivative(q, self.kernel_h))
+		return ret
 
 	@ti.func
 	def compute_rho_derivative_boundary(self, i, j):
@@ -213,12 +232,16 @@ class dfsph_solver(solver_base):
 				self.ps.fluid_particles.vel[i] -= vel_adv * self.delta_time[None]
 
 	@ti.func
-	def divergence_iter_vel_adv(self, i, j):
-		k_i = self.rho_derivative[i] * self.alpha[i] / self.delta_time[None]
-		k_j = self.rho_derivative[j] * self.alpha[j] / self.delta_time[None]
-		q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
-		ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * self.cubic_kernel_derivative(q,
-																										  self.kernel_h)
+	def divergence_iter_vel_adv(self, particle_i, particle_j):
+		ret = ti.Vector([0.0, 0.0, 0.0])
+		if particle_j.material == self.ps.material_fluid:
+			i = particle_i.index
+			j = particle_j.index
+			k_i = self.rho_derivative[i] * self.alpha[i] / self.delta_time[None]
+			k_j = self.rho_derivative[j] * self.alpha[j] / self.delta_time[None]
+			q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
+			kernel = self.cubic_kernel_derivative(q, self.kernel_h)
+			ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * kernel
 		return ret
 
 	@ti.func
