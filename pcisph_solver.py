@@ -94,9 +94,9 @@ class pcisph_solver(solver_base):
 			if self.boundary_handle == self.akinci2012_boundary_handle:
 				rho_boundary = 0.0
 				self.ps.for_all_boundary_neighbor(i, self.compute_rho_boundary_predict, rho_boundary)
-				self.rho_predict[i] = rho_predict * self.ps.particle_m + rho_boundary * self.rho_0
+				self.rho_predict[i] = rho_predict + rho_boundary * self.rho_0
 			else:
-				self.rho_predict[i] = rho_predict * self.ps.particle_m
+				self.rho_predict[i] = rho_predict
 			self.rho_err[i] = self.rho_predict[i] - self.rho_0
 
 	@ti.kernel
@@ -113,9 +113,9 @@ class pcisph_solver(solver_base):
 			if self.boundary_handle == self.akinci2012_boundary_handle:
 				boundary_acc = ti.Vector([0.0, 0.0, 0.0])
 				self.ps.for_all_boundary_neighbor(i, self.compute_boundary_pressure, boundary_acc)
-				self.press_force[i] = - press_force * self.ps.particle_m * self.ps.particle_m + boundary_acc * self.rho_0 * self.ps.particle_m
+				self.press_force[i] = - press_force + boundary_acc * self.rho_0 * self.ps.particle_m
 			else:
-				self.press_force[i] = - press_force * self.ps.particle_m * self.ps.particle_m
+				self.press_force[i] = - press_force
 
 	@ti.kernel
 	def compute_residual(self) -> ti.f32:
@@ -131,7 +131,12 @@ class pcisph_solver(solver_base):
 			i = particle_i.index
 			j = particle_j.index
 			q = (self.pos_predict[i] - self.pos_predict[j]).norm()
-			w_ij = self.cubic_kernel(q, self.kernel_h)
+			w_ij = self.cubic_kernel(q, self.kernel_h) * self.ps.particle_m
+		elif particle_j.material == self.ps.material_solid:
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				i = particle_i.index
+				q = (self.pos_predict[i] - particle_j.pos).norm()
+				w_ij = self.cubic_kernel(q, self.kernel_h) * particle_j.volume * self.rho_0
 		return w_ij
 
 	@ti.func
@@ -161,7 +166,16 @@ class pcisph_solver(solver_base):
 			j = particle_j.index
 			q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 			dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
-			ret = (self.press_iter[i] + self.press_iter[j]) * dw_ij / (self.rho_0 ** 2)
+			ret = (self.press_iter[i] + self.press_iter[j]) * dw_ij / (self.rho_0 ** 2) * self.ps.particle_m * self.ps.particle_m
+		elif particle_j.material == self.ps.material_solid:
+			if self.boundary_handle == self.akinci2012_boundary_handle:
+				i = particle_i.index
+				j = particle_j.index
+				q = particle_i.pos - particle_j.pos
+				rho_i = self.rho[i]
+				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
+				ret = self.ps.particle_m * particle_j.volume * self.rho_0 * self.press_iter[i] * kernel / (rho_i ** 2)
+				self.ps.rigid_particles[j].force += ret
 		return ret
 
 	@ti.func
