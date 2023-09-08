@@ -84,7 +84,7 @@ class ParticleSystem:
 		self.box_min = ti.Vector(scene_config.get('box_min'))
 
 		self.boundary_particles_num = self.compute_boundary_particles_count()
-		print('Boundary particle count: {}'.format(self.boundary_particles_num))
+		print('Boundary particle count: {}k'.format(self.boundary_particles_num / 1000))
 		self.boundary_particles = Particles.field(shape=self.boundary_particles_num)
 
 		# Grid
@@ -204,6 +204,7 @@ class ParticleSystem:
 
 	def init_particles_data(self):
 		self.fluid_particles.material.fill(self.material_fluid)
+		self.fluid_particles.rgb.fill(ti.Vector([0.0, 0.28, 1]))
 		self.fluid_particles.index_offset.fill(0)
 
 		self.boundary_particles.index_offset.fill(self.particle_num)
@@ -405,10 +406,13 @@ class ParticleSystem:
 			_1d_index = self.get_particle_grid_index_1d(I + center)
 			count = self.grids[_1d_index].length()
 			for index in range(count):
-				particle_j = self.grids[_1d_index, index]
-				if particle_j == i:
+				neighbor_index = self.grids[_1d_index, index]
+				particle_j = self.get_particle(neighbor_index)
+				# if not particle_j.material == self.material_fluid:
+				# 	continue
+				if particle_j.index == i:
 					continue
-				if (self.fluid_particles.pos[i] - self.fluid_particles.pos[particle_j]).norm() > self.support_radius:
+				if (self.fluid_particles.pos[i] - self.fluid_particles.pos[particle_j.index]).norm() > self.support_radius:
 					continue
 				neighbor_cnt += 1
 		return neighbor_cnt
