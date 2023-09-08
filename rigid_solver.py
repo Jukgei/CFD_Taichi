@@ -57,9 +57,6 @@ class rigid_solver:
 						collision = 1
 						collision_particle_v += v
 						collision_norm[j] = -1
-					self.ps.rigid_particles.rgb[i] = ti.Vector([1.0, 1.0, 0.0])
-
-					# ti.atomic_max(vel[j], - vel[j] * self.v_decay_proportion)
 
 				if self.ps.rigid_particles.pos[i][j] + ori_displacement[j] >= self.ps.box_max[j] - self.ps.particle_diameter:
 					# self.ps.rigid_particles.rgb[i] = ti.Vector([1.0, 1.0, 1.0])
@@ -69,11 +66,9 @@ class rigid_solver:
 						collision = 1
 						collision_particle_v += v
 						collision_norm[j] = 1
-					self.ps.rigid_particles.rgb[i] = ti.Vector([1.0, 1.0, 0.0])
 
 				if collision == 1:
-					# collision_point += (self.ps.rigid_particles.pos[i] + ori_displacement - self.ps.rigid_centriod[None]) * self.ps.rigid_particles.mass[i]
-					collision_point += (self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None])# * self.ps.rigid_particles.mass[i]
+					collision_point += (self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None])
 					collision_point_cnt += 1
 					collision_mass += self.ps.rigid_particles.mass[i]
 
@@ -92,7 +87,6 @@ class rigid_solver:
 		if collision_point_cnt > 0:
 			collision_point_matrix = ti.math.mat3([[0.0, - collision_point.z, collision_point.y], [collision_point.z, 0.0, -collision_point.x], [-collision_point.y, collision_point.x, 0.0]])
 			K = ti.Matrix.identity(ti.f32, 3) / sum_mass - collision_point_matrix @ ti.math.inverse(self.ps.rigid_inertia_tensor[None]) @ collision_point_matrix
-
 
 			inv_K = ti.math.inverse(K)
 			j = inv_K @ (collision_particle_v_new - collision_particle_v)
