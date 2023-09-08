@@ -15,14 +15,18 @@ class dfsph_solver(solver_base):
 		self.force_ext = ti.Vector.field(3, ti.float32, shape=self.particle_count)
 		self.force_ext.fill(self.gravity * ti.Vector([0.0, -1.0, 0.0]) * self.ps.particle_m)
 		self.warm_start_k = ti.field(ti.f32, shape=self.particle_count)
+		self.delta_time_2 = ti.field(ti.f32, shape=())
 
-		self.delta_time_2 = self.delta_time[None] ** 2
+		self.delta_time_2[None] = self.delta_time[None] ** 2
 		self.min_iteration_density = 2
 		self.density_threshold = 0.1
 		self.min_iteration_density_divergence = 1
-		self.max_iteration_density_divergence = 25
+		self.max_iteration_density_divergence = 15
 		self.density_divergence_threshold = 10
 		self.warm_start = True
+		self.adaptive_dt = True
+		self.max_dt = 1e-3
+		self.min_dt = 1e-5
 		# self.tension_k = 5
 
 	@ti.func
@@ -98,11 +102,13 @@ class dfsph_solver(solver_base):
 			self.vel_adv[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * self.force_ext[i] / self.ps.particle_m
 			ti.atomic_max(max_vel, self.vel_adv[i].norm())
 		max_delta_time = 0.4 * self.ps.particle_radius * 2 / max_vel * 0.8
-		if max_delta_time > 5e-4:
-			self.delta_time[None] = 5e-4
-		else:
-			self.delta_time[None] = ti.max(ti.min(max_delta_time, 5e-4), 1e-4)
-		print("Delta time: {}, max delta time {}".format(self.delta_time[None], max_delta_time))
+		if self.adaptive_dt:
+			if max_delta_time > self.max_dt:
+				self.delta_time[None] = self.max_dt
+			else:
+				self.delta_time[None] = ti.max(max_delta_time, self.min_dt)
+			self.delta_time_2[None] = self.delta_time[None] ** 2
+			# print("Delta time: {}, max delta time {}".format(self.delta_time[None], max_delta_time))
 		if self.delta_time[None] > 0.4 * self.ps.particle_radius * 2 / max_vel:
 			print('WARNING! DELTA TIME TOO SMALL. According to CLF condition, delta time must larger than {}'.format(0.4 * self.ps.particle_radius * 2/ max_vel))
 
@@ -165,8 +171,8 @@ class dfsph_solver(solver_base):
 		if particle_j.material == self.ps.material_fluid:
 			i = particle_i.index
 			j = particle_j.index
-			k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2
-			k_j = (self.rho_adv[j] - self.rho_0) * self.alpha[j] / self.delta_time_2
+			k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2[None]
+			k_j = (self.rho_adv[j] - self.rho_0) * self.alpha[j] / self.delta_time_2[None]
 			q = self.ps.fluid_particles.pos[i] - self.ps.fluid_particles.pos[j]
 			kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 			ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * kernel
@@ -174,16 +180,16 @@ class dfsph_solver(solver_base):
 			if self.boundary_handle == self.akinci2012_boundary_handle:
 				i = particle_i.index
 				j = particle_j.index
-				k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2
+				k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2[None]
 				q = particle_i.pos - particle_j.pos
 				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 				ret = particle_j.volume * self.rho_0 * k_i / self.rho[i] * kernel
-				self.ps.rigid_particles[j].force += ret
+				self.ps.rigid_particles[j].force += ret * self.ps.particle_m
 		return ret
 
 	@ti.func
 	def iter_vel_adv_boundary(self, i, j):
-		k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2
+		k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2[None]
 		q = self.ps.fluid_particles.pos[i] - self.ps.boundary_particles.pos[j]
 		return self.ps.boundary_particles.volume[j] * k_i / self.rho[i] * self.cubic_kernel_derivative(q, self.kernel_h)
 
@@ -235,6 +241,11 @@ class dfsph_solver(solver_base):
 			else:
 				self.rho_derivative[i] = ti.max(rho_derivative, 0.0)
 			# self.rho_derivative[i] = -self.rho[i] * rho_derivative
+			# if self.rho_derivative[i] > 100:
+			# 	self.ps.fluid_particles[i].rgb = ti.Vector([0.0, 0.0, 0.0])
+			# else:
+			# 	self.ps.fluid_particles[i].rgb = ti.Vector([0.0, 0.28, 1])
+
 			avg += self.rho_derivative[i]
 		return avg / self.particle_count
 
@@ -300,7 +311,7 @@ class dfsph_solver(solver_base):
 				q = particle_i.pos - particle_j.pos
 				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 				ret = particle_j.volume * self.rho_0 * k_i / self.rho[i] * kernel
-				self.ps.rigid_particles[j].force += ret
+				# self.ps.rigid_particles[j].force += ret * self.ps.particle_m
 		return ret
 
 
@@ -332,7 +343,7 @@ class dfsph_solver(solver_base):
 				q = particle_i.pos - particle_j.pos
 				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 				ret = particle_j.volume * self.rho_0 * k_i / self.rho[i] * kernel
-				self.ps.rigid_particles[j].force += ret
+				# self.ps.rigid_particles[j].force += ret * self.ps.particle_m
 		return ret
 
 	@ti.kernel
@@ -348,12 +359,19 @@ class dfsph_solver(solver_base):
 		return ret
 
 	def correct_divergence_error(self):
-		rho_divergence_avg = ti.math.inf
 		past_rho_divergence_avg = 0
 		iter_cnt = 0
 		if self.warm_start:
 			self.divergence_warm_start()
+		rho_divergence_avg = self.derivative_iter_all_rho()
+		first_err = rho_divergence_avg
 		while (iter_cnt < self.min_iteration_density_divergence or rho_divergence_avg > self.density_divergence_threshold) and iter_cnt < self.max_iteration_density_divergence:
+
+			self.divergence_iter_all_vel_adv()
+
+			if self.warm_start:
+				self.sum_up_stiff()
+			past_rho_divergence_avg = rho_divergence_avg
 
 			rho_divergence_avg = self.derivative_iter_all_rho()
 
@@ -361,16 +379,14 @@ class dfsph_solver(solver_base):
 				# print('[divergence iteration]: break, count: {}, error {}'.format(iter_cnt, rho_divergence_avg))
 				break
 
-			past_rho_divergence_avg = rho_divergence_avg
-
-			self.divergence_iter_all_vel_adv()
-
-			if self.warm_start:
-				self.sum_up_stiff()
-
 			iter_cnt += 1
 
-		print('[divergence iteration] count: {}, error {}'.format(iter_cnt, rho_divergence_avg))
+		print('[divergence iteration] count: {}, first error {}, error {}'.format(iter_cnt, first_err, rho_divergence_avg))
+
+	@ti.kernel
+	def reset(self):
+		# self.ps.fluid_particles.rgb.fill(ti.Vector([0.0, 0.28, 1]))
+		pass
 
 	@ti.kernel
 	def initialize(self):
