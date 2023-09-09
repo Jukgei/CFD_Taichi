@@ -20,8 +20,11 @@ class rigid_solver:
 		self.displacement = ti.Vector([0.0, 0.0, 0.0])
 		self.omega = ti.field(ti.math.vec3, shape=())
 		self.attitude = ti.field(ti.math.vec3, shape=())
+		self.mass = ti.field(ti.f32, shape=())
 
 		self.v_decay_proportion = 0.5
+
+		self.run_once_flag = False
 
 	@ti.kernel
 	def kinematic(self):
@@ -30,22 +33,19 @@ class rigid_solver:
 			force += self.ps.rigid_particles.force[i]
 			self.ps.rigid_particles.force[i] = ti.Vector([0.0, 0.0, 0.0])
 
-		sum_mass = 0.0
-		for i in range(self.particle_count):
-			sum_mass += self.ps.rigid_particles.mass[i]
-
-		self.ps.rigid_particles.acc.fill(force / sum_mass + self.gravity * ti.Vector([0.0, -1.0, 0.0]))
+		acc = force / self.mass[None] + self.gravity * ti.Vector([0.0, -1.0, 0.0])
+		self.ps.rigid_particles.acc.fill(acc)
 		# self.ps.rigid_particles.vel.fill()
 		vel = self.ps.rigid_particles.acc[0] * self.delta_time[None] + self.ps.rigid_particles.vel[0]
+		# print('rigid acc {}, force {}, vel {}, m {}'.format(force / sum_mass + self.gravity * ti.Vector([0.0, -1.0, 0.0]), force, vel, sum_mass))
 		displacement = vel * self.delta_time[None]
-		ori_displacement = vel * self.delta_time[None]
+		ori_displacement = displacement
 		# self.displacement_distance = -ti.math.inf
 		# displacement_min = displacement
 		collision_point_cnt = 0
 		collision_point = ti.Vector([0.0, 0.0, 0.0])
 		collision_particle_v = ti.Vector([0.0, 0.0, 0.0])
 		collision_norm = ti.Vector([0.0, 0.0, 0.0])
-		collision_mass = 0.0
 		for i in range(self.particle_count):
 			for j in ti.static(range(3)):
 				collision = 0
@@ -55,7 +55,7 @@ class rigid_solver:
 					v = vel + ti.math.cross(self.omega[None], (self.ps.rigid_particles.pos[i] + ori_displacement - self.ps.rigid_centriod[None]))
 					if v[j] < 0:
 						collision = 1
-						collision_particle_v += v
+						# collision_particle_v += v
 						collision_norm[j] = -1
 
 				if self.ps.rigid_particles.pos[i][j] + ori_displacement[j] >= self.ps.box_max[j] - self.ps.particle_diameter:
@@ -64,45 +64,36 @@ class rigid_solver:
 					v = vel + ti.math.cross(self.omega[None], (self.ps.rigid_particles.pos[i] + ori_displacement - self.ps.rigid_centriod[None]))
 					if v[j] > 0:
 						collision = 1
-						collision_particle_v += v
+						# collision_particle_v += v
 						collision_norm[j] = 1
 
 				if collision == 1:
-					collision_point += (self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None])
+					collision_point += self.ps.rigid_particles.pos[i]
 					collision_point_cnt += 1
-					collision_mass += self.ps.rigid_particles.mass[i]
 
 		collision_particle_v_new = ti.Vector([0.0, 0.0, 0.0])
 
 		if collision_point_cnt > 0:
-			collision_point = (collision_point + ori_displacement) / collision_point_cnt
-			collision_particle_v /= collision_point_cnt
+			collision_point = (collision_point + ori_displacement) / collision_point_cnt - self.ps.rigid_centriod[None]
+			# collision_particle_v /= collision_point_cnt
+			collision_particle_v = vel + ti.math.cross(self.omega[None], collision_point)
 
 			collision_particle_v_new = self.compute_new_vel(collision_particle_v, collision_norm)
 
-		sum_mass = 0.0
-		for i in range(self.ps.rigid_particles_num):
-			sum_mass += self.ps.rigid_particles.mass[i]
-
 		if collision_point_cnt > 0:
 			collision_point_matrix = ti.math.mat3([[0.0, - collision_point.z, collision_point.y], [collision_point.z, 0.0, -collision_point.x], [-collision_point.y, collision_point.x, 0.0]])
-			K = ti.Matrix.identity(ti.f32, 3) / sum_mass - collision_point_matrix @ ti.math.inverse(self.ps.rigid_inertia_tensor[None]) @ collision_point_matrix
+			K = ti.Matrix.identity(ti.f32, 3) / self.mass[None] - collision_point_matrix @ self.ps.rigid_inertia_tensor_inv[None] @ collision_point_matrix
 
 			inv_K = ti.math.inverse(K)
 			j = inv_K @ (collision_particle_v_new - collision_particle_v)
-			vel += j / sum_mass
-			self.omega[None] += ti.math.inverse(self.ps.rigid_inertia_tensor[None]) @ ti.math.cross(collision_point, j)
+			vel += j / self.mass[None]
+			self.omega[None] += self.ps.rigid_inertia_tensor_inv[None] @ ti.math.cross(collision_point, j)
 
 		self.ps.rigid_particles.vel.fill(vel)
 		for i in range(self.particle_count):
 			self.ps.rigid_particles.pos[i] += displacement
 
-		centroid = ti.Vector([0.0, 0.0, 0.0])
-
-		for i in range(self.ps.rigid_particles_num):
-			centroid += self.ps.rigid_particles.pos[i] * self.ps.rigid_particles.mass[i]
-
-		self.ps.rigid_centriod[None] = centroid / sum_mass
+		self.ps.rigid_centriod[None] += displacement
 
 	@ti.func
 	def compute_new_vel(self, v, n) -> ti.math.vec3:
@@ -123,7 +114,7 @@ class rigid_solver:
 			pos = self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None]
 			torque += ti.math.cross(pos, self.ps.rigid_particles.force[i])
 
-		alpha = ti.math.inverse(self.ps.rigid_inertia_tensor[None]) @ torque
+		alpha = self.ps.rigid_inertia_tensor_inv[None] @ torque
 		self.omega[None] += alpha * self.delta_time[None]
 		self.attitude[None] = self.omega[None] * self.delta_time[None]
 
@@ -135,16 +126,31 @@ class rigid_solver:
 		for i in range(self.particle_count):
 			self.ps.rigid_particles.pos[i] = R @(self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None]) + self.ps.rigid_centriod[None]
 
-		self.ps.rigid_inertia_tensor[None] = R @ self.ps.rigid_inertia_tensor[None] @ R.transpose()
+		self.ps.rigid_inertia_tensor_inv[None] = R @ self.ps.rigid_inertia_tensor_inv[None] @ R.transpose()
 
 	@ti.kernel
 	def reset(self):
-		self.ps.rigid_particles.acc.fill(0.0)
+		pass
+		# self.ps.rigid_particles.acc.fill(0.0)
 
 		# Debug & Visualization
 		# self.ps.rigid_particles.rgb.fill(ti.Vector([1.0, 0.0, 0.0]))
 
+	@ti.kernel
+	def compute_sum_mass(self):
+		sum_mass = 0.0
+		for i in range(self.particle_count):
+			sum_mass += self.ps.rigid_particles.mass[i]
+		self.mass[None] = sum_mass
+
+	def run_once(self):
+		self.compute_sum_mass()
+
 	def step(self):
+		if not self.run_once_flag:
+			self.run_once()
+			self.run_once_flag = True
+
 		self.simulate_cnt[None] += 1
 
 		self.reset()
