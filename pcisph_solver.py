@@ -54,6 +54,7 @@ class pcisph_solver(solver_base):
 		rho_err_avg = self.compute_residual()
 
 		while (rho_err_avg > self.rho_0 * self.rho_max_err_percent * 0.01 or iter_cnt < self.min_iteration) and iter_cnt < self.max_iteration:
+			self.ps.rigid_particles.force.fill(ti.Vector([0.0, 0.0, 0.0]))
 
 			self.iter_press()
 
@@ -121,7 +122,7 @@ class pcisph_solver(solver_base):
 	def compute_residual(self) -> ti.f32:
 		rho_err_sum = 0.0
 		for i in range(self.particle_count):
-			rho_err_sum += self.rho_err[i]
+			rho_err_sum += ti.max(self.rho_err[i], 0.0)
 		return rho_err_sum / self.particle_count
 
 	@ti.func
@@ -174,8 +175,8 @@ class pcisph_solver(solver_base):
 				q = particle_i.pos - particle_j.pos
 				rho_i = self.rho[i]
 				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
-				ret = self.ps.particle_m * particle_j.volume * self.rho_0 * self.press_iter[i] * kernel / (rho_i ** 2)
-				self.ps.rigid_particles[j].force += ret
+				ret = particle_j.volume * self.rho_0 * self.press_iter[i] * kernel / (rho_i ** 2)
+				self.ps.rigid_particles[j].force += ret * self.ps.particle_m
 		return ret
 
 	@ti.func
