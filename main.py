@@ -79,15 +79,19 @@ if __name__ == "__main__":
 	series_prefix = './output/output'
 	is_output_gif = scene_config.get('is_output_gif', False)
 	is_output_ply = scene_config.get('is_output_ply', False)
+	output_fps = scene_config.get('output_fps', 60)
 	is_pause = not scene_config.get('is_simulate', True)
 	flag = 0
 	render_fluid = True
 	render_rigid = True
+	ply_cnt = 0
+	t = 0.0
 	while window.running:
 		# Debug GUI
 
-		if frame_cnt > 40000:
+		if frame_cnt > 100000:
 			break
+		# if frame_cnt > 5200:
 		# 	ps.active_rigid[None] = 1
 		# 	if not flag:
 		# 		flag = 1
@@ -97,7 +101,9 @@ if __name__ == "__main__":
 
 		gui = window.get_gui()
 		gui.text("frame_cnt: {}".format(frame_cnt))
-		gui.text("time: {:.4f}".format(frame_cnt * iter_cnt * solver.delta_time[None]))
+		gui.text("delta time: {:.5f}".format(solver.delta_time[None]))
+		gui.text("time: {:.4f}".format(t))
+		gui.text("real time: {:.3f}".format(time.time() - start_time))
 		gui.text("Pause: {}".format(is_pause))
 		if window.is_pressed(ti.GUI.ESCAPE):
 			break
@@ -131,9 +137,10 @@ if __name__ == "__main__":
 		# if not is_pause:
 		# 	solver.visualize_rho()
 		if render_fluid:
-			scene.particles(ps.fluid_particles.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.rgb)
+			scene.particles(ps.fluid_particles.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.fluid_particles.rgb)
 		if render_rigid and config.get('solid', {}):
-			scene.particles(ps.rigid_particles.pos, color=(1.0, 0.0, 0), radius=ps.particle_radius, per_vertex_color=ps.rigid_particles.rgb)
+			scene.particles(ps.rigid_particles.pos, color=(1.0, 0.0, 0), radius=ps.particle_radius / 5, per_vertex_color=ps.rigid_particles.rgb)
+		scene.particles(rs.debug_particles, color=(1.0, 1.0, 1.0), radius=ps.particle_radius)
 		# scene.particles(ps.boundary_particles.pos, color=(1.0, 1.0, 1.0), radius=ps.particle_radius)
 
 		if not is_pause:
@@ -144,6 +151,7 @@ if __name__ == "__main__":
 				if rs and ps.active_rigid[None] == 1:
 					rs.step()
 			frame_cnt += 1
+			t += iter_cnt * solver.delta_time[None]
 			# ti.profiler.print_kernel_profiler_info()
 			# ti.profiler.clear_kernel_profiler_info()
 		# ti.profiler.print_kernel_profiler_info()
@@ -164,7 +172,8 @@ if __name__ == "__main__":
 			writer.add_vertex_pos(np_pos[:, 0], np_pos[:, 1], np_pos[:, 2])
 			writer.add_vertex_rgba(
 				np_rgba[:, 0], np_rgba[:, 1], np_rgba[:, 2], np_rgba[:, 3])
-			writer.export_frame_ascii(frame_cnt, series_prefix)
+			writer.export_frame_ascii(ply_cnt, series_prefix)
+			ply_cnt += 1
 		# print(frame_cnt)
 		window.show()
 
