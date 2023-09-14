@@ -1,6 +1,5 @@
 import taichi as ti
 
-
 @ti.data_oriented
 class rigid_solver:
 
@@ -22,9 +21,14 @@ class rigid_solver:
 		self.attitude = ti.field(ti.math.vec3, shape=())
 		self.mass = ti.field(ti.f32, shape=())
 
-		self.v_decay_proportion = 0.5
+		self.v_decay_proportion = 0.1
 
 		self.run_once_flag = False
+
+		self.max_boundary = ti.field(ti.math.vec3, shape=())
+		self.min_boundary = ti.field(ti.math.vec3, shape=())
+		self.debug_particles = ti.field(ti.math.vec3, shape=100)
+		self.debug_index = ti.field(ti.i32, shape=())
 
 	@ti.kernel
 	def kinematic(self):
@@ -37,7 +41,7 @@ class rigid_solver:
 		self.ps.rigid_particles.acc.fill(acc)
 		# self.ps.rigid_particles.vel.fill()
 		vel = self.ps.rigid_particles.acc[0] * self.delta_time[None] + self.ps.rigid_particles.vel[0]
-		# print('rigid acc {}, force {}, vel {}, m {}'.format(force / sum_mass + self.gravity * ti.Vector([0.0, -1.0, 0.0]), force, vel, sum_mass))
+		# print('rigid acc {}, force {}, vel {}'.format(acc, force, vel))
 		displacement = vel * self.delta_time[None]
 		ori_displacement = displacement
 		# self.displacement_distance = -ti.math.inf
@@ -89,9 +93,13 @@ class rigid_solver:
 			vel += j / self.mass[None]
 			self.omega[None] += self.ps.rigid_inertia_tensor_inv[None] @ ti.math.cross(collision_point, j)
 
+		self.ps.rigid_particles.omega.fill(self.omega[None])
 		self.ps.rigid_particles.vel.fill(vel)
 		for i in range(self.particle_count):
 			self.ps.rigid_particles.pos[i] += displacement
+
+		for i in range(self.ps.rigid_vertex_count):
+			self.ps.rigid_vertices[i] += displacement
 
 		self.ps.rigid_centriod[None] += displacement
 
@@ -117,6 +125,7 @@ class rigid_solver:
 		alpha = self.ps.rigid_inertia_tensor_inv[None] @ torque
 		self.omega[None] += alpha * self.delta_time[None]
 		self.attitude[None] = self.omega[None] * self.delta_time[None]
+		self.ps.rigid_particles.alpha.fill(alpha)
 
 	@ti.kernel
 	def rotation(self):
@@ -125,6 +134,9 @@ class rigid_solver:
 
 		for i in range(self.particle_count):
 			self.ps.rigid_particles.pos[i] = R @(self.ps.rigid_particles.pos[i] - self.ps.rigid_centriod[None]) + self.ps.rigid_centriod[None]
+
+		for i in range(self.ps.rigid_vertex_count):
+			self.ps.rigid_vertices[i] = R@(self.ps.rigid_vertices[i] - self.ps.rigid_centriod[None]) + self.ps.rigid_centriod[None]
 
 		self.ps.rigid_inertia_tensor_inv[None] = R @ self.ps.rigid_inertia_tensor_inv[None] @ R.transpose()
 
@@ -136,15 +148,70 @@ class rigid_solver:
 		# Debug & Visualization
 		# self.ps.rigid_particles.rgb.fill(ti.Vector([1.0, 0.0, 0.0]))
 
+		for i in range(self.debug_index[None]):
+			self.debug_particles[i] = ti.Vector([0.0, 0.0, 0.0])
+
+		self.debug_index[None] = 0
+
 	@ti.kernel
 	def compute_sum_mass(self):
 		sum_mass = 0.0
 		for i in range(self.particle_count):
 			sum_mass += self.ps.rigid_particles.mass[i]
 		self.mass[None] = sum_mass
+		print('rigid mass is {}'.format(sum_mass))
+
+	@ti.kernel
+	def check_penetrate(self):
+		offset = self.ps.rigid_particles[0].index_offset
+		for i in range(self.particle_count):
+			cnt = 0
+			self.ps.for_all_neighbor(i+offset, self.judge_penetrate, cnt)
+			# if cnt > 0:
+			# 	print('penetrate')
+
+	@ti.func
+	def judge_penetrate(self, particle_i, particle_j):
+		cnt = 0
+		if particle_j.material == self.ps.material_fluid:
+			pos = particle_j.pos - self.ps.rigid_centriod[None]
+			if pos.x < self.max_boundary[None].x and pos.y < self.max_boundary[None].y and pos.z < self.max_boundary[None].z:
+				# cnt += 1
+				# j = particle_j.index
+				# self.ps.fluid_particles[j].rgb = ti.Vector([1.0, 1.0, 1.0])
+				# print('up {}, {}, {}'.format(particle_j.pos, self.ps.rigid_centriod[None], pos))
+				if pos.x > self.min_boundary[None].x and pos.y > self.min_boundary[None].y and pos.z > self.min_boundary[None].z:
+					cnt += 1
+					j = particle_j.index
+
+					self.ps.fluid_particles[j].rgb = ti.Vector([1.0, 1.0, 1.0])
+					if self.debug_index[None] < 100:
+						self.debug_particles[self.debug_index[None]] = particle_j.pos
+						self.debug_index[None] += 1
+					# print('down {}, {}, {}'.format(particle_j.pos, self.ps.rigid_centriod[None], pos))
+		return cnt
+
+	@ti.kernel
+	def init_boundary(self):
+		for i in range(self.particle_count):
+			pos = self.ps.rigid_particles[i].pos - self.ps.rigid_centriod[None]
+			ti.atomic_max(self.max_boundary[None].x, pos.x)
+			ti.atomic_max(self.max_boundary[None].y, pos.y)
+			ti.atomic_max(self.max_boundary[None].z, pos.z)
+
+			ti.atomic_min(self.min_boundary[None].x, pos.x)
+			ti.atomic_min(self.min_boundary[None].y, pos.y)
+			ti.atomic_min(self.min_boundary[None].z, pos.z)
+
+		diameter = self.ps.particle_diameter
+		self.max_boundary[None] -= ti.Vector([diameter, diameter, diameter])
+		self.max_boundary[None] += ti.Vector([diameter, diameter, diameter])
+
+		print('Rigid boundary max: {}, min: {}'.format(self.max_boundary[None], self.min_boundary[None]))
 
 	def run_once(self):
 		self.compute_sum_mass()
+		self.init_boundary()
 
 	def step(self):
 		if not self.run_once_flag:
@@ -153,6 +220,9 @@ class rigid_solver:
 
 		self.simulate_cnt[None] += 1
 
+		if self.ps.delta_time[None] > 0.0:
+			self.delta_time[None] = self.ps.delta_time[None]
+
 		self.reset()
 
 		self.compute_attitude()
@@ -160,3 +230,5 @@ class rigid_solver:
 		self.rotation()
 
 		self.kinematic()
+
+		# self.check_penetrate()
