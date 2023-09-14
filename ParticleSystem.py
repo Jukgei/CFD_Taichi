@@ -14,8 +14,9 @@ Particles = ti.types.struct(
 	index_offset=int,
 	force=ti.math.vec3,
 	index=int,
-	rgb=ti.math.vec3
-	# omega=ti.math.vec3
+	rgb=ti.math.vec3,
+	omega=ti.math.vec3,
+	alpha=ti.math.vec3
 )
 
 ParticlesBlocks = ti.types.struct(
@@ -33,25 +34,32 @@ class ParticleSystem:
 		fluid_config = config.get('fluid')
 		solid_config = config.get('solid', {})
 
+		self.delta_time = ti.field(ti.f32, shape=()) #adaptive dt
+
 		self.exist_rigid = ti.field(int, shape=())
 		self.exist_rigid[None] = 1 if solid_config else 0
 		if self.exist_rigid[None] == 1:
 			mesh = tm.load_mesh(solid_config.get('mesh'))
 			mesh = mesh.apply_scale(solid_config.get('scale'))
+			self.mesh = mesh
 			self.voxel_radius = solid_config.get('voxel_radius')
 			if solid_config.get('fill', True):
-				voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius).fill()
+				voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius*2).fill()
 			else:
-				voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius)
+				voxelized_mesh = mesh.voxelized(pitch=self.voxel_radius*2)
 			voxelized_points_np = voxelized_mesh.points
 			self.rigid_pos_offset = solid_config.get('pos_offset')
 			self.rigid_attitude_offset = ti.Vector(solid_config.get('attitude_offset')) / 180.0 * ti.math.pi
 			self.rigid_rho = solid_config.get('rho_0')
+			self.rigid_vertex_count = mesh.vertices.shape[0]
+			self.rigid_vertices = ti.field(ti.math.vec3, shape=self.rigid_vertex_count)
+			self.rigid_vertices.from_numpy(mesh.vertices)
 			self.rigid_particles_num = voxelized_points_np.shape[0]
 			self.rigid_particles = Particles.field(shape=self.rigid_particles_num)
 			self.rigid_particles.pos.from_numpy(voxelized_points_np)
 			self.rigid_centriod = ti.field(ti.math.vec3, shape=())
 			self.rigid_inertia_tensor = ti.field(ti.math.mat3, shape=())
+			self.rigid_inertia_tensor_inv = ti.field(ti.math.mat3, shape=())
 			self.active_rigid = ti.field(int, shape=())
 			self.active_rigid[None] = 1 if solid_config.get('active', False) else 0
 		else:
@@ -197,10 +205,21 @@ class ParticleSystem:
 				pos4 = m @ pos4
 				self.rigid_particles.pos[i] = ti.Vector([pos4.x, pos4.y, pos4.z])
 
+		# output obj
+		for i in range(self.rigid_vertex_count):
+			pos = self.rigid_vertices[i]
+			pos4 = ti.Vector([pos.x, pos.y, pos.z, 1])
+			pos4 = m @ pos4
+			self.rigid_vertices[i] = ti.Vector([pos4.x, pos4.y, pos4.z])
+
 		for i in range(self.rigid_particles_num):
 			if self.exist_rigid[None] == 1:
 				self.rigid_particles.pos[i] += ti.Vector(self.rigid_pos_offset)
 				self.rigid_particles.index[i] = i
+
+		# output obj
+		for i in range(self.rigid_vertex_count):
+			self.rigid_vertices[i] += ti.Vector(self.rigid_pos_offset)
 
 	def init_particles_data(self):
 		self.fluid_particles.material.fill(self.material_fluid)
@@ -268,11 +287,15 @@ class ParticleSystem:
 			Iyz += - self.rigid_particles.mass[i] * (pos.z * pos.y)
 
 		self.rigid_inertia_tensor[None] = ti.math.mat3([Ixx, Ixy, Ixz], [Ixy, Iyy, Iyz], [Ixz, Iyz, Izz])
+		self.rigid_inertia_tensor_inv[None] = ti.math.inverse(self.rigid_inertia_tensor[None])
 		print("Intertia tensor: {}".format(self.rigid_inertia_tensor[None]))
 	# @ti.kernel
 	# def compute_all_rigid_volume(self):
 		self.rigid_particles.rgb.fill(ti.Vector([1.0, 0.0, 0.0]))
 
+	# @ti.kernel
+	def update_mesh_vextics(self):
+		self.mesh.vertices = self.rigid_vertices.to_numpy()
 
 	@ti.func
 	def compute_rigid_volume(self, particle_i, particle_j):
