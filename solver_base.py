@@ -29,6 +29,8 @@ class solver_base:
 		self.tension = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 
 		self.boundary_handle = 1 if solver_config.get('boundary_handle', True) else 0
+		self.fs_couple = 1 if solver_config.get('fs_couple', True) else 0
+		self.two_way_couple = 1
 		self.clamp_boundary_handle = 0
 		self.akinci2012_boundary_handle = 1
 
@@ -57,7 +59,7 @@ class solver_base:
 		if particle_j.material == self.ps.material_fluid:
 			ret = self.ps.particle_m * self.cubic_kernel((particle_i.pos - particle_j.pos).norm(), self.kernel_h)
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				ret = particle_j.volume * self.cubic_kernel((particle_i.pos - particle_j.pos).norm(), self.kernel_h) * self.rho_0
 		return ret
 
@@ -127,6 +129,7 @@ class solver_base:
 	@ti.kernel
 	def reset(self):
 		self.ps.fluid_particles.acc.fill(self.gravity * ti.Vector([0.0, -1.0, 0.0]))
+		# self.ps.fluid_particles.rgb.fill(ti.Vector([0.0, 0.28, 1]))
 
 	def step(self):
 		self.simulate_cnt[None] += 1
@@ -183,7 +186,7 @@ class solver_base:
 				pi = -nu * shear / (q2 + self.viscosity_epsilon * self.kernel_h * self.kernel_h)
 				ret += - self.ps.particle_m * pi * self.cubic_kernel_derivative(x_ij, self.kernel_h)
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				v_ij = particle_i.vel - particle_j.vel
 				x_ij = particle_i.pos - particle_j.pos
 				shear = v_ij @ x_ij
