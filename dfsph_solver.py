@@ -57,7 +57,7 @@ class dfsph_solver(solver_base):
 			q = particle_i.pos - particle_j.pos
 			ret = self.ps.particle_m * self.cubic_kernel_derivative(q, self.kernel_h)
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				q = particle_i.pos - particle_j.pos
 				ret = particle_j.volume * self.rho_0 * self.cubic_kernel_derivative(q, self.kernel_h)
 		return ret
@@ -70,7 +70,7 @@ class dfsph_solver(solver_base):
 			ret = self.ps.particle_m * self.cubic_kernel_derivative(q, self.kernel_h)
 			ans = ret.dot(ret)
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				q = particle_i.pos - particle_j.pos
 				ret = particle_j.volume * self.rho_0 * self.cubic_kernel_derivative(q, self.kernel_h)
 				ans = ret.dot(ret)
@@ -101,20 +101,31 @@ class dfsph_solver(solver_base):
 		for i in range(self.particle_count):
 			self.vel_adv[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * self.force_ext[i] / self.ps.particle_m
 			ti.atomic_max(max_vel, self.vel_adv[i].norm())
-		max_delta_time = 0.4 * self.ps.particle_radius * 2 / max_vel * 0.8
+		max_rigid_vel = 0.0
+		for i in range(self.ps.rigid_particles_num):
+			pos = self.ps.rigid_particles[i].pos
+			vel = self.ps.rigid_particles[i].vel
+			omega = self.ps.rigid_particles[i].omega
+			cs = self.ps.rigid_centriod[None]
+			ti.atomic_max(max_rigid_vel, vel.norm() + ti.math.cross(omega, pos - cs).norm())
+		max_vel += max_rigid_vel
+		max_delta_time = 0.4 * self.ps.particle_radius * 2 / max_vel * 0.5
 		if self.adaptive_dt:
 			if max_delta_time > self.max_dt:
 				self.delta_time[None] = self.max_dt
 			else:
 				self.delta_time[None] = ti.max(max_delta_time, self.min_dt)
 			self.delta_time_2[None] = self.delta_time[None] ** 2
-			# print("Delta time: {}, max delta time {}".format(self.delta_time[None], max_delta_time))
+			self.ps.delta_time[None] = self.delta_time[None]
+		# print("Delta time: {}, max delta time {}, rigid max time {}, max vel {}".format(self.delta_time[None], max_delta_time, max_rigid_vel, max_vel))
 		if self.delta_time[None] > 0.4 * self.ps.particle_radius * 2 / max_vel:
 			print('WARNING! DELTA TIME TOO SMALL. According to CLF condition, delta time must larger than {}'.format(0.4 * self.ps.particle_radius * 2/ max_vel))
 
 	@ti.kernel
 	def compute_all_rho_adv(self) -> ti.float32:
 		rho_avg = 0.0
+		cnt = 0
+		ret = 1000.0
 		for i in range(self.particle_count):
 			delta = 0.0
 			self.ps.for_all_neighbor(i, self.compute_rho_adv, delta)
@@ -125,8 +136,20 @@ class dfsph_solver(solver_base):
 			else:
 				self.rho_adv[i] = ti.max(self.rho[i] + self.delta_time[None] * delta, self.rho_0)
 			# self.rho_adv[i] = self.rho[i] + self.delta_time[None] * delta
-			rho_avg += self.rho_adv[i]
-		return rho_avg / self.particle_count
+			if not self.rho_adv[i] == self.rho_0:
+				rho_avg += self.rho_adv[i]
+				cnt += 1
+
+		max_rho_adv = -ti.math.inf
+		# cnt = self.particle_count
+		for i in range(self.particle_count):
+			ti.atomic_max(max_rho_adv, self.rho_adv[i])
+
+		if cnt > 0:
+			ret = rho_avg / cnt
+		# ret = rho_avg / self.particle_count
+		# print("max rho adv {}, cnt {}, ret {}".format(max_rho_adv, self.particle_count - cnt, ret))
+		return ret
 
 	@ti.func
 	def compute_rho_adv(self, particle_i, particle_j):
@@ -138,11 +161,13 @@ class dfsph_solver(solver_base):
 			kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 			ret = self.ps.particle_m * (self.vel_adv[i] - self.vel_adv[j]).dot(kernel)
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				i = particle_i.index
 				q = particle_i.pos - particle_j.pos
 				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
-				ret = particle_j.volume * self.rho_0 * (self.vel_adv[i] - particle_j.vel).dot(kernel)
+				v_omega = ti.math.cross(particle_j.omega + particle_j.alpha * self.delta_time[None], particle_j.pos - self.ps.rigid_centriod[None])
+				v_j = particle_j.vel + particle_j.acc * self.delta_time[None] + v_omega
+				ret = particle_j.volume * self.rho_0 * (self.vel_adv[i] - v_j).dot(kernel)
 		return ret
 
 	@ti.func
@@ -177,7 +202,7 @@ class dfsph_solver(solver_base):
 			kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 			ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * kernel
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				i = particle_i.index
 				j = particle_j.index
 				k_i = (self.rho_adv[i] - self.rho_0) * self.alpha[i] / self.delta_time_2[None]
@@ -205,7 +230,7 @@ class dfsph_solver(solver_base):
 
 			iter_cnt += 1
 
-		# print('[density iteration] count: {}, error {}'.format(iter_cnt, rho_avg - self.rho_0))
+		print('[density iteration] count: {}, error {}'.format(iter_cnt, rho_avg - self.rho_0))
 
 	@ti.kernel
 	def compute_all_position(self):
@@ -227,6 +252,8 @@ class dfsph_solver(solver_base):
 	@ti.kernel
 	def derivative_iter_all_rho(self) -> ti.float32:
 		avg = 0.0
+		cnt = 0
+		ret = 0.0
 		for i in range(self.particle_count):
 			neighbor_count = self.ps.get_neighbour_count(i)
 			if neighbor_count < 20:
@@ -245,9 +272,12 @@ class dfsph_solver(solver_base):
 			# 	self.ps.fluid_particles[i].rgb = ti.Vector([0.0, 0.0, 0.0])
 			# else:
 			# 	self.ps.fluid_particles[i].rgb = ti.Vector([0.0, 0.28, 1])
-
-			avg += self.rho_derivative[i]
-		return avg / self.particle_count
+			if self.rho_derivative[i] > 0:
+				cnt += 1
+				avg += self.rho_derivative[i]
+		if cnt > 0:
+			ret = avg / cnt
+		return ret
 
 	@ti.func
 	def compute_rho_derivative(self, particle_i, particle_j):
@@ -256,10 +286,12 @@ class dfsph_solver(solver_base):
 			q = particle_i.pos - particle_j.pos
 			ret = self.ps.particle_m * (particle_i.vel - particle_j.vel).dot(self.cubic_kernel_derivative(q, self.kernel_h))
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				q = particle_i.pos - particle_j.pos
 				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
-				ret = particle_j.volume * self.rho_0 * (particle_i.vel - particle_j.vel).dot(kernel)
+				v_omega = ti.math.cross(particle_j.omega, particle_j.pos - self.ps.rigid_centriod[None])
+				v_j = particle_j.vel + particle_j.acc * self.delta_time[None] + v_omega
+				ret = particle_j.volume * self.rho_0 * (particle_i.vel - v_j).dot(kernel)
 		return ret
 
 	@ti.func
@@ -304,7 +336,7 @@ class dfsph_solver(solver_base):
 			kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 			ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * kernel
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				i = particle_i.index
 				j = particle_j.index
 				k_i = self.warm_start_k[i] / self.delta_time[None]
@@ -336,7 +368,7 @@ class dfsph_solver(solver_base):
 
 				ret = self.ps.particle_m * (k_i / self.rho[i] + k_j / self.rho[j]) * kernel
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				i = particle_i.index
 				j = particle_j.index
 				k_i = self.rho_derivative[i] * self.alpha[i] / self.delta_time[None]
@@ -385,7 +417,7 @@ class dfsph_solver(solver_base):
 
 	@ti.kernel
 	def reset(self):
-		# self.ps.fluid_particles.rgb.fill(ti.Vector([0.0, 0.28, 1]))
+		self.ps.fluid_particles.rgb.fill(ti.Vector([0.0, 0.28, 1]))
 		pass
 
 	@ti.kernel
