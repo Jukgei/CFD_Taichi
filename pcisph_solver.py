@@ -54,7 +54,7 @@ class pcisph_solver(solver_base):
 		rho_err_avg = self.compute_residual()
 
 		while (rho_err_avg > self.rho_0 * self.rho_max_err_percent * 0.01 or iter_cnt < self.min_iteration) and iter_cnt < self.max_iteration:
-			self.ps.rigid_particles.force.fill(ti.Vector([0.0, 0.0, 0.0]))
+			# self.ps.rigid_particles.force.fill(ti.Vector([0.0, 0.0, 0.0]))
 
 			self.iter_press()
 
@@ -121,9 +121,16 @@ class pcisph_solver(solver_base):
 	@ti.kernel
 	def compute_residual(self) -> ti.f32:
 		rho_err_sum = 0.0
+		cnt = 0
+		ret = 0.0
 		for i in range(self.particle_count):
-			rho_err_sum += ti.max(self.rho_err[i], 0.0)
-		return rho_err_sum / self.particle_count
+			err = ti.max(self.rho_err[i], 0.0)
+			if err > 0.0:
+				rho_err_sum += err
+				cnt += 1
+		if cnt > 0:
+			ret = rho_err_sum / cnt
+		return ret
 
 	@ti.func
 	def compute_rho_predict(self, particle_i, particle_j):
@@ -134,7 +141,7 @@ class pcisph_solver(solver_base):
 			q = (self.pos_predict[i] - self.pos_predict[j]).norm()
 			w_ij = self.cubic_kernel(q, self.kernel_h) * self.ps.particle_m
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				i = particle_i.index
 				q = (self.pos_predict[i] - particle_j.pos).norm()
 				w_ij = self.cubic_kernel(q, self.kernel_h) * particle_j.volume * self.rho_0
@@ -169,7 +176,7 @@ class pcisph_solver(solver_base):
 			dw_ij = self.cubic_kernel_derivative(q, self.kernel_h)
 			ret = (self.press_iter[i] + self.press_iter[j]) * dw_ij / (self.rho_0 ** 2) * self.ps.particle_m * self.ps.particle_m
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				i = particle_i.index
 				j = particle_j.index
 				q = particle_i.pos - particle_j.pos
@@ -177,6 +184,7 @@ class pcisph_solver(solver_base):
 				kernel = self.cubic_kernel_derivative(q, self.kernel_h)
 				ret = particle_j.volume * self.rho_0 * self.press_iter[i] * kernel / (rho_i ** 2)
 				self.ps.rigid_particles[j].force += ret * self.ps.particle_m
+				ret *= self.ps.particle_m
 		return ret
 
 	@ti.func
