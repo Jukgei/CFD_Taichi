@@ -1,20 +1,20 @@
 {
   "scene": {
     "box_min" : [0.0, 0.0, 0.0],
-    "box_max" : [7, 4, 2.5],
+    "box_max" : [7, 7, 2.5],
     "particle_radius" : 0.025,
     "gravity": 9.8,
     "is_output_gif": false,
     "is_output_ply": false,
     "output_fps": 60,
     "is_simulate": true,
-    "cam_pos": [10.02, 6.33, 13.18],
-    "cam_look_at": [9.63, 5.94, 12.34],
+    "cam_pos": [8.76, 8.27, 13.22],
+    "cam_look_at": [8.38, 7.89, 12.38],
     "cam_up": [0, 1, 0]
   },
   "solver": {
-    "name" : "wcsph",
-    "delta_time" : 4e-4,
+    "name" : "pcisph",
+    "delta_time" : 1e-3,
     "iter_cnt" : 1,
     "boundary_handle": false,
     "fs_couple": true
