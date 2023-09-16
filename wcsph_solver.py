@@ -53,12 +53,12 @@ class wcsph_solver(solver_base):
 		if self.boundary_handle == self.clamp_boundary_handle:
 			for i in range(self.particle_count):
 				for j in ti.static(range(3)):
-					if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_radius:
-						self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_radius
+					if self.ps.fluid_particles.pos[i][j] <= self.ps.box_min[j] + self.ps.particle_diameter:
+						self.ps.fluid_particles.pos[i][j] = self.ps.box_min[j] + self.ps.particle_diameter
 						self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
-					if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_radius:
-						self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_radius
+					if self.ps.fluid_particles.pos[i][j] >= self.ps.box_max[j] - self.ps.particle_diameter:
+						self.ps.fluid_particles.pos[i][j] = self.ps.box_max[j] - self.ps.particle_diameter
 						self.ps.fluid_particles.vel[i][j] *= -self.v_decay_proportion
 
 	@ti.func
@@ -114,7 +114,7 @@ class wcsph_solver(solver_base):
 			q = particle_i.pos - particle_j.pos
 			ret -= self.ps.particle_m * (p_i / rho_i_2 + p_j / (rho_j ** 2)) * self.cubic_kernel_derivative(q, self.kernel_h)  # * dir / (dir.norm() * self.kernel_h)
 		elif particle_j.material == self.ps.material_solid:
-			if self.boundary_handle == self.akinci2012_boundary_handle:
+			if self.fs_couple == self.two_way_couple:
 				i = particle_i.index
 				p_i = self.pressure[i]
 				rho_i = self.rho[i]
