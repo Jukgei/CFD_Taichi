@@ -1,34 +1,34 @@
 {
   "scene": {
     "box_min" : [0.0, 0.0, 0.0],
-    "box_max" : [7, 4, 2.5],
+    "box_max" : [2.5, 2.4, 1.5],
     "particle_radius" : 0.025,
     "gravity": 9.8,
     "is_output_gif": false,
     "is_output_ply": false,
     "output_fps": 60,
     "is_simulate": true,
-    "cam_pos": [10.02, 6.33, 13.18],
-    "cam_look_at": [9.63, 5.94, 12.34],
+    "cam_pos": [2.85, 2.71, 7.46],
+    "cam_look_at": [2.61, 2.49, 6.52],
     "cam_up": [0, 1, 0]
   },
   "solver": {
     "name" : "wcsph",
-    "delta_time" : 4e-4,
+    "delta_time" : 2.5e-4,
     "iter_cnt" : 1,
-    "boundary_handle": false,
+    "boundary_handle": true,
     "fs_couple": true
   },
   "fluid" : {
-    "start_pos" : [0.2, 0.1, 0.1],
-    "water_size": [2, 3.6, 2.3]
+    "start_pos" : [0.1, 0.1, 0.1],
+    "water_size": [1.0, 2.0, 1.4]
   },
-  "solid1" : {
+  "solid" : {
     "mesh": "./obj/cube1.stl",
     "voxel_radius": 0.025,
-    "rho_0": 500,
-    "scale": 1,
-    "pos_offset": [4.7, 0.9, 0.7],
+    "rho_0": 1000,
+    "scale": 0.6,
+    "pos_offset": [1.7, 0.6, 0.7],
     "attitude_offset": [0.0, 0.0, 90.0],
     "fill": true,
     "active": true
