@@ -65,6 +65,7 @@ class ParticleSystem:
 		else:
 			self.rigid_particles_num = 0
 			self.rigid_particles = Particles.field(shape=1)
+			self.rigid_centriod = ti.field(ti.math.vec3, shape=())
 			# self.rigid_particles = None
 			# self.rigid_particles = Particles.field(shape=self.rigid_particles_num)
 		# self.voxelized_points = ti.Vector.field(3, ti.f32, self.rigid_particles_num)
@@ -389,6 +390,9 @@ class ParticleSystem:
 		for i in range(self.particle_num):
 			grid_index_3d = self.get_particle_grid_index_3d(self.fluid_particles.pos[i])
 			grid_index_1d = self.get_particle_grid_index_1d(grid_index_3d)
+			if grid_index_1d < 0 or grid_index_1d > self.grid_num[0] * self.grid_num[1] * self.grid_num[2]:
+				print("ERROR: [INDEX ERROR] 3d index {} 1d index {}".format(grid_index_3d, grid_index_1d))
+				continue
 			self.grids[grid_index_1d].append(i)
 			self.fluid_particles.belong_grid[i] = grid_index_3d
 
