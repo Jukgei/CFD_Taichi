@@ -89,6 +89,8 @@ if __name__ == "__main__":
 	t = 0.0
 	simulation_time_consuming = 0
 	pause_start_time = 0
+	if is_pause:
+		pause_start_time = time.time()
 	pause_time = 0
 	while window.running:
 		# Debug GUI
@@ -104,15 +106,22 @@ if __name__ == "__main__":
 		# 		ps.init_rigid_particles_data()
 
 		gui = window.get_gui()
-		gui.text("frame_cnt: {}".format(frame_cnt))
-		gui.text("delta time: {:.5f}".format(solver.delta_time[None]))
-		gui.text("time: {:.4f}".format(t))
-		if is_pause:
-			gui.text("real time: {:.3f}".format(pause_start_time - pause_time - start_time))
+		if not is_output_gif:
+			gui.text("frame_cnt: {}".format(frame_cnt))
+			gui.text("delta time: {:.5f}".format(solver.delta_time[None]))
+			gui.text("time: {:.4f}".format(t))
+			if is_pause:
+				gui.text("real time: {:.3f}".format(pause_start_time - pause_time - start_time))
+			else:
+				gui.text("real time: {:.3f}".format(time.time() - start_time - pause_time))
+			gui.text("ply_cnt: {}".format(ply_cnt))
+			gui.text("Pause: {}".format(is_pause))
 		else:
-			gui.text("real time: {:.3f}".format(time.time() - start_time - pause_time))
-		gui.text("ply_cnt: {}".format(ply_cnt))
-		gui.text("Pause: {}".format(is_pause))
+			print("time: {:.4f}".format(t))
+			if is_pause:
+				print("real time: {:.3f}".format(pause_start_time - pause_time - start_time))
+			else:
+				print("real time: {:.3f}".format(time.time() - start_time - pause_time))
 		if window.is_pressed(ti.GUI.ESCAPE):
 			break
 		if window.is_pressed(ti.GUI.SPACE) and is_pause:
@@ -149,7 +158,7 @@ if __name__ == "__main__":
 		if render_fluid:
 			scene.particles(ps.fluid_particles.pos, color=(0.0, 0.28, 1), radius=ps.particle_radius, per_vertex_color=ps.fluid_particles.rgb)
 		if render_rigid and config.get('solid', {}):
-			scene.particles(ps.rigid_particles.pos, color=(1.0, 0.0, 0), radius=ps.particle_radius / 5, per_vertex_color=ps.rigid_particles.rgb)
+			scene.particles(ps.rigid_particles.pos, color=(1.0, 0.0, 0), radius=ps.particle_radius, per_vertex_color=ps.rigid_particles.rgb)
 		# scene.particles(rs.debug_particles, color=(1.0, 1.0, 1.0), radius=ps.particle_radius)
 		# scene.particles(ps.boundary_particles.pos, color=(1.0, 1.0, 1.0), radius=ps.particle_radius)
 
@@ -184,10 +193,11 @@ if __name__ == "__main__":
 			writer.add_vertex_rgba(
 				np_rgba[:, 0], np_rgba[:, 1], np_rgba[:, 2], np_rgba[:, 3])
 			writer.export_frame_ascii(ply_cnt, series_prefix)
-			ps.update_mesh_vextics()
-			with open(f"output/obj_{ply_cnt:06}.obj", "w") as f:
-				e = ps.mesh.export(file_type='obj')
-				f.write(e)
+			if ps.exist_rigid[None] == 1:
+				ps.update_mesh_vextics()
+				with open(f"output/obj_{ply_cnt:06}.obj", "w") as f:
+					e = ps.mesh.export(file_type='obj')
+					f.write(e)
 			ply_cnt += 1
 		# print(frame_cnt)
 		window.show()
