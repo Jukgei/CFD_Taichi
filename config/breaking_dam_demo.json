@@ -1,0 +1,36 @@
+{
+  "scene": {
+    "box_min" : [0.0, 0.0, 0.0],
+    "box_max" : [10, 7, 3],
+    "particle_radius" : 0.025,
+    "gravity": 9.8,
+    "is_output_gif": false,
+    "is_output_ply": false,
+    "output_fps": 60,
+    "is_simulate": true,
+    "cam_pos": [13.34, 9.61, 13.77],
+    "cam_look_at": [12.86, 9.19, 13.00],
+    "cam_up": [0, 1, 0]
+  },
+  "solver": {
+    "name" : "dfsph",
+    "delta_time" : 7e-4,
+    "iter_cnt" : 1,
+    "boundary_handle": false,
+    "fs_couple": true
+  },
+  "fluid" : {
+    "start_pos" : [0.2, 0.1, 0.1],
+    "water_size": [2, 3.5, 2.8]
+  },
+  "solid1" : {
+    "mesh": "./obj/cube1.stl",
+    "voxel_radius": 0.025,
+    "rho_0": 500,
+    "scale": 1,
+    "pos_offset": [4.7, 0.9, 0.7],
+    "attitude_offset": [0.0, 0.0, 90.0],
+    "fill": true,
+    "active": true
+  }
+}
