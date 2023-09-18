@@ -24,9 +24,9 @@ class iisph_solver(solver_base):
 		self.f_press = ti.Vector.field(3, dtype=ti.float32, shape=self.particle_count)
 
 		self.omega = 0.5
-		self.max_iter_cnt = 50
-		self.min_iter_cnt = 2
-		self.rho_err_percent = 1
+		self.max_iter_cnt = 180
+		self.min_iter_cnt = 1
+		self.rho_err_percent = .1
 
 	@ti.kernel
 	def reset(self):
@@ -88,8 +88,12 @@ class iisph_solver(solver_base):
 			l += 1
 
 			residual = self.compute_residual()
+			if len(residuals) > 0 and residual - residuals[-1] > 0:
+				print('Iteration trend to divergence')
+				break
 			residuals.append(residual)
-		# print("Iter cnt: ", l, residual)
+
+		print("Iter cnt: ", l, residual)
 
 		if l == 50:
 			print(residuals)
