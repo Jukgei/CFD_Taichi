@@ -15,13 +15,13 @@ class solver_base:
 		self.delta_time = ti.field(ti.float32, shape=())
 		self.delta_time[None] = solver_config.get('delta_time')
 		self.kernel_h = self.ps.particle_radius * 4
-		self.v_decay_proportion = 0.9
+		self.v_decay_proportion = 0.5
 		self.rho_0 = 1000
 		self.gravity = scene_config.get('gravity')
 		self.simulate_cnt = ti.field(ti.int32, shape=())
 
 		self.viscosity_epsilon = 0.01
-		self.viscosity_c_s = 5
+		self.viscosity_c_s = 13
 		self.viscosity_alpha = 0.08
 		self.tension_k = 0.5
 
@@ -33,6 +33,8 @@ class solver_base:
 		self.two_way_couple = 1
 		self.clamp_boundary_handle = 0
 		self.akinci2012_boundary_handle = 1
+
+		self.artificial_friction = 0.9999
 
 		print("\033[32m[Solver]: {}\033[0m".format(solver_config.get('name')))
 

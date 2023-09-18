@@ -202,6 +202,9 @@ if __name__ == "__main__":
 		# print(frame_cnt)
 		window.show()
 
+		if t > 4.0:
+			break
+
 	if is_output_gif:
 		video_manager.make_video(gif=True, mp4=True)
 

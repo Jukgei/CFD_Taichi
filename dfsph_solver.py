@@ -109,7 +109,7 @@ class dfsph_solver(solver_base):
 			cs = self.ps.rigid_centriod[None]
 			ti.atomic_max(max_rigid_vel, vel.norm() + ti.math.cross(omega, pos - cs).norm())
 		max_vel += max_rigid_vel
-		max_delta_time = 0.4 * self.ps.particle_radius * 2 / max_vel * 0.5
+		max_delta_time = 0.4 * self.ps.particle_radius * 2 / max_vel * 0.2
 		if self.adaptive_dt:
 			if max_delta_time > self.max_dt:
 				self.delta_time[None] = self.max_dt
@@ -235,8 +235,8 @@ class dfsph_solver(solver_base):
 	@ti.kernel
 	def compute_all_position(self):
 		for i in range(self.particle_count):
-			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.vel_adv[i]
-			self.ps.fluid_particles.vel[i] = self.vel_adv[i]
+			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.vel_adv[i] * self.artificial_friction
+			self.ps.fluid_particles.vel[i] = self.vel_adv[i] * self.artificial_friction
 
 		if self.boundary_handle == self.clamp_boundary_handle:
 			for i in range(self.particle_count):
