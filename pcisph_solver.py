@@ -67,7 +67,7 @@ class pcisph_solver(solver_base):
 			# error
 			rho_err_avg = self.compute_residual()
 			iter_cnt += 1
-			# print('		Iter cnt: {}, error: {}'.format(iter_cnt, rho_err_avg))
+		print('		Iter cnt: {}, error: {}'.format(iter_cnt, rho_err_avg))
 
 	@ti.kernel
 	def predict_vel_pos(self):
@@ -202,6 +202,7 @@ class pcisph_solver(solver_base):
 		for i in range(self.particle_count):
 			self.ps.fluid_particles.vel[i] = self.ps.fluid_particles.vel[i] + self.delta_time[None] * (
 						self.ext_force[i] + self.press_force[i]) / self.ps.particle_m
+			self.ps.fluid_particles.vel[i] *= self.artificial_friction
 			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.ps.fluid_particles.vel[i]
 
 		if self.boundary_handle == self.clamp_boundary_handle:
