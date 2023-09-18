@@ -187,6 +187,7 @@ class iisph_solver(solver_base):
 
 		for i in range(self.particle_count):
 			self.ps.fluid_particles.vel[i] = self.v_adv[i] + self.delta_time[None] * self.f_press[i] / self.ps.particle_m
+			self.ps.fluid_particles.vel[i] *= self.artificial_friction
 			self.ps.fluid_particles.pos[i] = self.ps.fluid_particles.pos[i] + self.delta_time[None] * self.ps.fluid_particles.vel[i]
 
 		# self.check_valid()
