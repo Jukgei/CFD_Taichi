@@ -15,7 +15,7 @@ class wcsph_solver(solver_base):
 		self.tension = ti.Vector.field(n=3, dtype=ti.float32, shape=particle_count)
 
 		self.viscosity_epsilon = 0.01
-		self.viscosity_c_s = 5
+		self.viscosity_c_s = 10
 		self.viscosity_alpha = 0.08
 		self.tension_k = 0.2
 		self.gamma = 7
@@ -48,6 +48,7 @@ class wcsph_solver(solver_base):
 
 		for i in range(self.particle_count):
 			self.ps.fluid_particles.vel[i] += self.ps.fluid_particles.acc[i] * self.delta_time[None]
+			self.ps.fluid_particles.vel[i] *= 0.9998
 			self.ps.fluid_particles.pos[i] += self.ps.fluid_particles.vel[i] * self.delta_time[None]
 
 		if self.boundary_handle == self.clamp_boundary_handle:
