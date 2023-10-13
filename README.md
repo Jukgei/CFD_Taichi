@@ -1,4 +1,7 @@
 ## SPH in Taichi
+<p align=center>
+ <img src="https://github.com/Jukgei/CFD_Taichi/demo/breaking_dam.gif" width="80%" height="80%"/>
+</p>
 The aim of this project is to learn and comprehend the 
 Smoothed-particle hydrodynamics (SPH) method and its classical 
 variants. Five classical SPH solvers and one classical rigid-fluid 
@@ -10,6 +13,8 @@ As a result, we have limited the optimization of the code, which means that the 
 - taichi
 - numpy
 - trimesh
+- ffmpeg
+- vulkan
 
 ## Feature
 | Solver                                                              | Single-phase Flow | [Rigid-Fluid Coupling [7]](https://dl.acm.org/doi/abs/10.1145/2185520.2185558) |
