@@ -1,6 +1,6 @@
 ## SPH in Taichi
 <p align=center>
- <img src="https://github.com/Jukgei/CFD_Taichi/demo/breaking_dam.gif" width="80%" height="80%"/>
+ <img src="https://github.com/Jukgei/CFD_Taichi/blob/main/demo/breaking_dam.gif" width="80%" height="80%"/>
 </p>
 The aim of this project is to learn and comprehend the 
 Smoothed-particle hydrodynamics (SPH) method and its classical 
