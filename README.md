@@ -1,18 +1,7 @@
 ## SPH in Taichi
 
-<div class="video-container">
-<video id="replay-video"
-                controls
-                autoplay
-                loop
-                muted
-                preload
-                playsinline
-                width="100%">
-            <source src="./demo/demo.mp4"
-                    type="video/mp4">
-</video>
-</div>
+![Teaser](./demo/demo.gif)
+
 The aim of this project is to learn and comprehend the 
 Smoothed-particle hydrodynamics (SPH) method and its classical 
 variants. Five classical SPH solvers and one classical rigid-fluid 
